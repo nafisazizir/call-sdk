@@ -1,47 +1,346 @@
-// M3 stub — the real Twilio adapter lands in M4. This brings the class up to
-// the current `Adapter` contract so the graph and conformance kit type-check
-// against it; every I/O method throws until M4.
+/**
+ * The Twilio adapter: normalizes Twilio's raw Media Streams audio to/from
+ * the SDK's canonical format and emits call lifecycle events. Built on
+ * Twilio's raw audio streaming layer, not its managed voice-AI product
+ * (SPEC.md, Design Decisions) — this adapter contains no VAD, transcription,
+ * or turn logic; it only moves bytes and facts.
+ */
 
-import type {
-  Adapter,
-  AdapterContext,
-  MediaSocket,
-  StartCallOptions,
-  WebhookOptions,
+import {
+  type Adapter,
+  type AdapterContext,
+  AdapterError,
+  type AdapterSessionHandle,
+  downsampleX2,
+  FrameChunker,
+  type MediaSocket,
+  mediaSocketDataToText,
+  mulawDecode,
+  mulawEncode,
+  type OutboundAudio,
+  type StartCallOptions,
+  upsampleX2,
+  type WebhookOptions,
 } from "call-sdk";
+import {
+  parseTwilioMessage,
+  serializeTwilioClear,
+  serializeTwilioMark,
+  serializeTwilioMedia,
+} from "./protocol";
+import { startTwilioCall } from "./rest";
+import { validateTwilioSignature } from "./signature";
+import { connectStreamTwiml } from "./twiml";
 import type { TwilioAdapterConfig } from "./types";
+
+const DEFAULT_MEDIA_PATH = "/twilio/media";
+const DEFAULT_API_BASE_URL = "https://api.twilio.com";
 
 export class TwilioAdapter implements Adapter {
   readonly name = "twilio";
+
   #ctx?: AdapterContext;
+  readonly #config: TwilioAdapterConfig;
+  #warnedSignatureDisabled = false;
+
+  constructor(config: TwilioAdapterConfig = {}) {
+    this.#config = config;
+  }
 
   bind(ctx: AdapterContext): void {
     this.#ctx = ctx;
   }
 
-  webhook(_request: Request, _options?: WebhookOptions): Promise<Response> {
-    return this.#notImplemented();
+  /**
+   * Control plane: Twilio's inbound-call webhook. Validates the request
+   * signature (unless disabled), extracts caller metadata, and responds
+   * with TwiML that connects the call to the media plane.
+   */
+  async webhook(
+    request: Request,
+    _options?: WebhookOptions
+  ): Promise<Response> {
+    const ctx = this.#requireCtx();
+    const bodyText = await request.text();
+    const params = Object.fromEntries(new URLSearchParams(bodyText).entries());
+
+    if (this.#shouldValidateSignature()) {
+      const authToken = this.#requireAuthToken(
+        "signature validation is enabled but no auth token is configured"
+      );
+      const signature = request.headers.get("X-Twilio-Signature") ?? "";
+      const valid = validateTwilioSignature(
+        authToken,
+        request.url,
+        params,
+        signature
+      );
+      if (!valid) {
+        ctx.logger.warn("rejected Twilio webhook: invalid X-Twilio-Signature");
+        return new Response("Forbidden", { status: 403 });
+      }
+    } else if (!this.#warnedSignatureDisabled) {
+      this.#warnedSignatureDisabled = true;
+      ctx.logger.warn(
+        "Twilio webhook signature validation is disabled — requests are not authenticated"
+      );
+    }
+
+    const from = params.From ?? "";
+    const to = params.To ?? "";
+    const direction = (params.Direction ?? "inbound").startsWith("outbound")
+      ? "outbound"
+      : "inbound";
+    const mediaUrl = this.#resolveInboundMediaUrl(request);
+    const twiml = connectStreamTwiml(mediaUrl, { from, to, direction });
+    return new Response(twiml, {
+      status: 200,
+      headers: { "content-type": "text/xml" },
+    });
   }
 
-  media(_socket: MediaSocket): void {
-    this.#notImplemented();
+  /**
+   * Media plane: owns the Media Streams wire protocol for one connection —
+   * `connected`/`start` bring the session up, `media` frames flow bidirec-
+   * tionally through the canonical format, `mark` echoes drive playback-
+   * completion detection, and `stop`/close/error all end the call exactly
+   * once (SPEC.md, Failure & Teardown: a dropped media socket ends the call).
+   */
+  media(socket: MediaSocket): void {
+    const ctx = this.#requireCtx();
+    let handle: AdapterSessionHandle | undefined;
+    let streamSid: string | undefined;
+    let chunker: FrameChunker | undefined;
+    let socketOpen = true;
+    let stopSeen = false;
+
+    const guardedSend = (label: string, data: string): void => {
+      if (!socketOpen) {
+        ctx.logger.debug(`dropping ${label}: media socket is closed`);
+        return;
+      }
+      try {
+        socket.send(data);
+      } catch (err) {
+        ctx.logger.debug(`failed to send Twilio ${label}`, {
+          error: String(err),
+        });
+      }
+    };
+
+    const outbound: OutboundAudio = {
+      write: (frame) => {
+        if (!streamSid) {
+          return;
+        }
+        const mulaw = mulawEncode(downsampleX2(frame.samples));
+        guardedSend(
+          "media",
+          serializeTwilioMedia(streamSid, Buffer.from(mulaw).toString("base64"))
+        );
+      },
+      mark: (name) => {
+        if (!streamSid) {
+          return;
+        }
+        guardedSend("mark", serializeTwilioMark(streamSid, name));
+      },
+      clear: () => {
+        if (!streamSid) {
+          return;
+        }
+        guardedSend("clear", serializeTwilioClear(streamSid));
+      },
+    };
+
+    const endOnce = (reason: "hangup" | "media-closed"): void => {
+      if (stopSeen) {
+        return;
+      }
+      stopSeen = true;
+      handle?.end(reason);
+    };
+
+    socket.addEventListener("message", (event) => {
+      const message = parseTwilioMessage(mediaSocketDataToText(event.data));
+      if (!message) {
+        ctx.logger.debug("ignoring unrecognized Twilio media message");
+        return;
+      }
+      switch (message.event) {
+        case "connected":
+          break;
+        case "start": {
+          streamSid = message.streamSid;
+          const custom = message.start.customParameters ?? {};
+          const direction =
+            custom.direction === "outbound" ? "outbound" : "inbound";
+          chunker = new FrameChunker();
+          handle = ctx.createSession(
+            {
+              callId: message.start.callSid,
+              direction,
+              ...(custom.from === undefined ? {} : { from: custom.from }),
+              ...(custom.to === undefined ? {} : { to: custom.to }),
+              raw: message,
+            },
+            outbound
+          );
+          handle.answered();
+          break;
+        }
+        case "media": {
+          if (!(handle && chunker)) {
+            ctx.logger.debug("media frame before start — dropped");
+            return;
+          }
+          const decoded = mulawDecode(
+            Buffer.from(message.media.payload, "base64")
+          );
+          const frames = chunker.push(upsampleX2(decoded));
+          for (const frame of frames) {
+            handle.deliverAudio(frame);
+          }
+          break;
+        }
+        case "mark":
+          handle?.mark(message.mark.name);
+          break;
+        case "stop":
+          endOnce("hangup");
+          break;
+        default:
+          break;
+      }
+    });
+
+    socket.addEventListener("close", () => {
+      socketOpen = false;
+      endOnce("media-closed");
+    });
+
+    socket.addEventListener("error", (err) => {
+      // A mere socket error races the close event and is not a semantic
+      // adapter failure — treat it the same as a dropped media socket
+      // (SPEC.md, Failure & Teardown), not `handle.fail`.
+      ctx.logger.warn("Twilio media socket error", { error: String(err) });
+      endOnce("media-closed");
+    });
   }
 
-  startCall(_options: StartCallOptions): Promise<{ callId: string }> {
-    return this.#notImplemented();
+  /** Places an outbound call via Twilio's REST API and connects it to the media plane. */
+  async startCall(options: StartCallOptions): Promise<{ callId: string }> {
+    const from =
+      options.from ??
+      this.#config.phoneNumber ??
+      process.env.TWILIO_PHONE_NUMBER;
+    if (!from) {
+      throw new AdapterError(
+        "startCall requires a 'from' number: pass options.from, set config.phoneNumber, or set TWILIO_PHONE_NUMBER",
+        { adapterName: "twilio" }
+      );
+    }
+    const mediaUrl = this.#config.mediaUrl;
+    if (!mediaUrl) {
+      throw new AdapterError(
+        "startCall requires config.mediaUrl — an outbound call has no inbound request to derive it from",
+        { adapterName: "twilio" }
+      );
+    }
+    const twiml = connectStreamTwiml(mediaUrl, {
+      ...options.metadata,
+      direction: "outbound",
+      from,
+      to: options.to,
+    });
+    return await startTwilioCall({
+      accountSid: this.#requireAccountSid(),
+      authToken: this.#requireAuthToken("startCall requires an auth token"),
+      apiBaseUrl: this.#config.apiBaseUrl ?? DEFAULT_API_BASE_URL,
+      to: options.to,
+      from,
+      twiml,
+    });
   }
 
-  #notImplemented(): never {
-    // `#ctx` is captured at bind time and consumed by the real M4 impl.
-    void this.#ctx;
-    throw new Error("TwilioAdapter is not implemented until M4");
+  // ---------------------------------------------------------------------
+  // Lazy config resolution — nothing here runs (or throws) at construction.
+  // ---------------------------------------------------------------------
+
+  #requireCtx(): AdapterContext {
+    if (!this.#ctx) {
+      throw new AdapterError(
+        "TwilioAdapter used before bind() — pass it to `new Call({ adapters: { twilio: ... } })` first",
+        { adapterName: "twilio" }
+      );
+    }
+    return this.#ctx;
+  }
+
+  #requireAccountSid(): string {
+    const sid = this.#config.accountSid ?? process.env.TWILIO_ACCOUNT_SID;
+    if (!sid) {
+      throw new AdapterError(
+        "Missing Twilio account SID: set config.accountSid or TWILIO_ACCOUNT_SID",
+        { adapterName: "twilio" }
+      );
+    }
+    return sid;
+  }
+
+  #requireAuthToken(context: string): string {
+    const token = this.#config.authToken ?? process.env.TWILIO_AUTH_TOKEN;
+    if (!token) {
+      throw new AdapterError(
+        `Missing Twilio auth token (${context}): set config.authToken or TWILIO_AUTH_TOKEN`,
+        { adapterName: "twilio" }
+      );
+    }
+    return token;
+  }
+
+  #shouldValidateSignature(): boolean {
+    if (this.#config.validateSignature !== undefined) {
+      return this.#config.validateSignature;
+    }
+    return Boolean(this.#config.authToken ?? process.env.TWILIO_AUTH_TOKEN);
+  }
+
+  #resolveInboundMediaUrl(request: Request): string {
+    if (this.#config.mediaUrl) {
+      return this.#config.mediaUrl;
+    }
+    const host = request.headers.get("host");
+    if (!host) {
+      throw new AdapterError(
+        "Cannot derive the Twilio media URL: the request has no Host header and config.mediaUrl is unset",
+        { adapterName: "twilio" }
+      );
+    }
+    const mediaPath = this.#config.mediaPath ?? DEFAULT_MEDIA_PATH;
+    return `wss://${host}${mediaPath}`;
   }
 }
 
+/** Creates a Twilio adapter. See {@link TwilioAdapterConfig} for lazy config resolution. */
 export function createTwilioAdapter(
-  _config?: TwilioAdapterConfig
+  config?: TwilioAdapterConfig
 ): TwilioAdapter {
-  return new TwilioAdapter();
+  return new TwilioAdapter(config);
 }
 
+export type {
+  TwilioConnectedMessage,
+  TwilioInboundMessage,
+  TwilioMarkMessage,
+  TwilioMediaMessage,
+  TwilioStartMessage,
+  TwilioStopMessage,
+} from "./protocol";
+export { parseTwilioMessage } from "./protocol";
+export { startTwilioCall } from "./rest";
+export { computeTwilioSignature, validateTwilioSignature } from "./signature";
+// Re-exported so consumers building custom media hosts or tests can reuse
+// the adapter's own building blocks without reimplementing them.
+export { connectStreamTwiml } from "./twiml";
 export type { TwilioAdapterConfig } from "./types";

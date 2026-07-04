@@ -13,6 +13,13 @@ export {
   type MockCallDriver,
 } from "./factories";
 export {
+  computeFakeTwilioSignature,
+  type FakeTwilioCall,
+  type FakeTwilioCallOptions,
+  type FakeTwilioReceived,
+  startFakeTwilioCall,
+} from "./fake-twilio";
+export {
   ALL_CALL_EVENT_TYPES,
   matchers,
   type RecordedEvents,

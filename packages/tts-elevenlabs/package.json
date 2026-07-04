@@ -30,6 +30,7 @@
     "call-sdk": "workspace:*"
   },
   "devDependencies": {
+    "@call-adapter/tests": "workspace:*",
     "@types/node": "^25.3.2",
     "tsup": "^8.3.5",
     "typescript": "^5.9.3",
