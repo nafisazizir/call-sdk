@@ -30,7 +30,7 @@
     "ws": "^8.18.0"
   },
   "peerDependencies": {
-    "call-sdk": "^0.0.0",
+    "call-sdk": "*",
     "vitest": "^4.0.0"
   },
   "devDependencies": {
