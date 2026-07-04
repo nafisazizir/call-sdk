@@ -28,6 +28,12 @@ import type { TelemetryMark } from "./telemetry.js";
  *   consequences (stopping TTS generation, flushing the adapter's outbound
  *   queue). Consumers that only want to *observe* interruptions never need
  *   to worry about accidentally causing one by handling the event.
+ * - **`agent-generation-end` is a fact from the TTS stage**: "no further
+ *   `audio-out` frames will be published for this utterance." Core uses it
+ *   to arm playback-completion detection (send the provider mark / start the
+ *   fallback timer). A TTS stage must publish it on normal completion; on
+ *   abort it may publish it or not — core has already torn the utterance
+ *   down by then and ignores it.
  */
 
 export type CallEndReason = "hangup" | "media-closed" | "local-end" | "error";
@@ -40,6 +46,7 @@ export interface TranscriptFinalEvent {
 }
 
 export interface CallEventMap {
+  "agent-generation-end": { utteranceId: string };
   "agent-say": {
     utteranceId: string;
     text: string | AsyncIterable<string>;

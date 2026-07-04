@@ -1,20 +1,4 @@
-// Placeholder — replaced in later milestones
-
-/**
- * A provider adapter. Emits call lifecycle events and moves normalized audio
- * bidirectionally; contains no transcription, VAD, or turn-detection logic.
- */
-export interface Adapter {
-  readonly name: string;
-}
-
-/**
- * A swappable pipeline stage (VAD, transcription, turn detection, TTS, ...).
- * Configured once, instantiated per call session.
- */
-export interface Stage {
-  readonly name: string;
-}
+// Contracts: Adapter, Stage, MediaSocket, session ids
 
 // Audio DSP primitives
 export {
@@ -40,6 +24,14 @@ export {
   type EventMeta,
   type Unsubscribe,
 } from "./bus.js";
+// The configured application + one call in flight
+export {
+  Call,
+  type CallConfig,
+  type MediaHandlers,
+  resolveStages,
+  type Webhooks,
+} from "./call.js";
 // Errors
 export {
   AdapterError,
@@ -55,6 +47,11 @@ export type {
   CallEventType,
   TranscriptFinalEvent,
 } from "./events.js";
+export {
+  CORE_PRODUCED_EVENTS,
+  type ValidateStageGraphOptions,
+  validateStageGraph,
+} from "./graph.js";
 // Logging
 export {
   type ChildLoggerBindings,
@@ -65,7 +62,25 @@ export {
   type Logger,
   type LogLevel,
 } from "./logger.js";
-
+export {
+  CallSession,
+  type CallSessionDeps,
+  type ConversationState,
+  type SayResult,
+  type SessionHandlers,
+  type TranscriptEntry,
+} from "./session.js";
+// Default in-core stages
+export {
+  createEnergyVadStage,
+  EnergyVadStage,
+  type EnergyVadStageConfig,
+} from "./stages/energy-vad.js";
+export {
+  createSilenceTurnStage,
+  SilenceTurnStage,
+  type SilenceTurnStageConfig,
+} from "./stages/silence-turn.js";
 // Telemetry
 export {
   SessionTelemetry,
@@ -73,3 +88,21 @@ export {
   type TelemetrySink,
   type TurnLatencySummary,
 } from "./telemetry.js";
+export {
+  type Adapter,
+  type AdapterContext,
+  type AdapterSessionHandle,
+  formatSessionId,
+  type MediaSocket,
+  type MediaSocketCloseEvent,
+  type MediaSocketMessageEvent,
+  mediaSocketDataToText,
+  type OutboundAudio,
+  parseSessionId,
+  type SessionInit,
+  type Stage,
+  type StageContext,
+  type StageHandle,
+  type StartCallOptions,
+  type WebhookOptions,
+} from "./types.js";

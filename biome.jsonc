@@ -9,7 +9,8 @@
         "noSkippedTests": "off"
       },
       "complexity": {
-        "noExcessiveCognitiveComplexity": "off"
+        "noExcessiveCognitiveComplexity": "off",
+        "noVoid": "off"
       },
       "performance": {
         "noBarrelFile": "off"
