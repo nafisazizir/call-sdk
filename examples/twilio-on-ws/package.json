@@ -11,12 +11,15 @@
     "dev": "tsx src/index.ts",
     "build": "echo 'no build step'",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "start-call": "tsx src/start-call.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.5",
     "@call-adapter/stt-deepgram": "workspace:*",
-    "@call-adapter/twilio": "workspace:*",
     "@call-adapter/tts-elevenlabs": "workspace:*",
+    "@call-adapter/twilio": "workspace:*",
+    "ai": "^7.0.11",
     "call-sdk": "workspace:*",
     "ws": "^8.18.0"
   },
