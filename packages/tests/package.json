@@ -1,0 +1,57 @@
+{
+  "name": "@call-adapter/tests",
+  "version": "0.0.0",
+  "description": "Vitest factories, matchers, and setup utilities for testing Call SDK adapters and stages",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "peerDependencies": {
+    "call-sdk": "^0.0.0",
+    "vitest": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "@types/ws": "^8.5.13",
+    "call-sdk": "workspace:*",
+    "tsup": "^8.3.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "call",
+    "call-sdk",
+    "testing",
+    "vitest",
+    "matchers",
+    "mocks",
+    "test-kit"
+  ],
+  "license": "MIT"
+}

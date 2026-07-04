@@ -1,0 +1,32 @@
+{
+  "name": "example-twilio-on-ws",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example: wiring the Twilio adapter to Call SDK over a raw WebSocket media stream",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "echo 'no build step'",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@call-adapter/stt-deepgram": "workspace:*",
+    "@call-adapter/twilio": "workspace:*",
+    "@call-adapter/tts-elevenlabs": "workspace:*",
+    "call-sdk": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@call-adapter/tests": "workspace:*",
+    "@types/node": "^25.3.2",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.22.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "license": "MIT"
+}

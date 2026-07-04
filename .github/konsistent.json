@@ -1,0 +1,147 @@
+{
+  "$schema": "../node_modules/konsistent/konsistent.schema.json",
+  "version": "v1",
+  "conventions": [
+    {
+      "name": "package-dir-must-have-required-files",
+      "description": "Every package directory must contain a specific minimum set of files.",
+      "paths": ["packages/*"],
+      "must": [
+        {
+          "name": "package-dir-must-have-package-and-docs-files",
+          "description": "Every package directory must contain README, package.json and tsconfig.json.",
+          "must": {
+            "haveType": "directory",
+            "haveFiles": [
+              "README.md",
+              "package.json",
+              "tsconfig.json",
+              "tsup.config.ts",
+              "src/index.ts"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "adapter-package-must-export-required-symbols",
+      "description": "Every adapter package must have specific files that export a specific set of symbols.",
+      "paths": ["packages/adapter-{adapterId}/src/index.ts"],
+      "must": [
+        {
+          "name": "adapter-package-must-export-provider-creator-and-settings",
+          "description": "Every adapter package must export adapter class, creator function, and config type from its index.ts file.",
+          "must": {
+            "importTypes": [
+              {
+                "name": "Adapter",
+                "from": "call-sdk"
+              }
+            ],
+            "exportClasses": [
+              {
+                "name": "${adapterId.toPascalCase()}Adapter",
+                "implement": ["Adapter"]
+              }
+            ],
+            "exportFunctions": [
+              {
+                "name": "create${adapterId.toPascalCase()}Adapter",
+                "receiveParamOfType": "${adapterId.toPascalCase()}AdapterConfig",
+                "returnValueOfType": "${adapterId.toPascalCase()}Adapter"
+              }
+            ],
+            "exportTypes": [
+              {
+                "name": "${adapterId.toPascalCase()}AdapterConfig",
+                "from": "./types"
+              }
+            ],
+            "haveFiles": ["types.ts"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "stt-stage-package-must-export-required-symbols",
+      "description": "Every STT stage package must have specific files that export a specific set of symbols.",
+      "paths": ["packages/stt-{stageId}/src/index.ts"],
+      "must": [
+        {
+          "name": "stt-stage-package-must-export-stage-creator-and-settings",
+          "description": "Every STT stage package must export stage class, creator function, and config type from its index.ts file.",
+          "must": {
+            "importTypes": [
+              {
+                "name": "Stage",
+                "from": "call-sdk"
+              }
+            ],
+            "exportClasses": [
+              {
+                "name": "${stageId.toPascalCase()}Stage",
+                "implement": ["Stage"]
+              }
+            ],
+            "exportFunctions": [
+              {
+                "name": "create${stageId.toPascalCase()}Stage",
+                "receiveParamOfType": "${stageId.toPascalCase()}StageConfig",
+                "returnValueOfType": "${stageId.toPascalCase()}Stage"
+              }
+            ],
+            "exportTypes": [
+              {
+                "name": "${stageId.toPascalCase()}StageConfig",
+                "from": "./types"
+              }
+            ],
+            "haveFiles": ["types.ts"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "tts-stage-package-must-export-required-symbols",
+      "description": "Every TTS stage package must have specific files that export a specific set of symbols.",
+      "paths": ["packages/tts-{stageId}/src/index.ts"],
+      "must": [
+        {
+          "name": "tts-stage-package-must-export-stage-creator-and-settings",
+          "description": "Every TTS stage package must export stage class, creator function, and config type from its index.ts file.",
+          "must": {
+            "importTypes": [
+              {
+                "name": "Stage",
+                "from": "call-sdk"
+              }
+            ],
+            "exportClasses": [
+              {
+                "name": "${stageId.toPascalCase()}Stage",
+                "implement": ["Stage"]
+              }
+            ],
+            "exportFunctions": [
+              {
+                "name": "create${stageId.toPascalCase()}Stage",
+                "receiveParamOfType": "${stageId.toPascalCase()}StageConfig",
+                "returnValueOfType": "${stageId.toPascalCase()}Stage"
+              }
+            ],
+            "exportTypes": [
+              {
+                "name": "${stageId.toPascalCase()}StageConfig",
+                "from": "./types"
+              }
+            ],
+            "haveFiles": ["types.ts"]
+          }
+        }
+      ]
+    }
+  ],
+  "kebabToPascalMap": {
+    "elevenlabs": "ElevenLabs"
+  }
+}

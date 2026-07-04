@@ -1,0 +1,21 @@
+SPEC.md
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.turbo/
+
+# Test
+coverage/
+
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
