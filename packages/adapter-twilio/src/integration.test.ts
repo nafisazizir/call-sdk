@@ -1,12 +1,16 @@
 /**
  * Mini end-to-end integration test: a real Node `http` server + a real `ws`
- * `WebSocketServer`, a real `Call` wired to the real `TwilioAdapter`, real
- * (shrunk-window) energy-VAD and silence-turn stages, and mock STT/TTS from
- * `@call-adapter/tests` — driven entirely through `FakeTwilioCall`, a
- * protocol-accurate fake Twilio client. No part of the pipeline is mocked
- * except the STT/TTS providers, exactly as SPEC.md's "The Adapter Contract"
- * and "Two Entry Points, One Graph" describe: the adapter is thin, everything
- * semantic lives above it.
+ * `WebSocketServer`, a real `Call` wired to the real `TwilioAdapter`, driven
+ * entirely through `FakeTwilioCall`, a protocol-accurate fake Twilio client.
+ *
+ * The consumer here is a tiny inline agent that drives `session.audio`
+ * directly — `frames()`/`audio-frame` in, `write()`/`mark()`/`clear()` out —
+ * with **no voice pipeline**. The point is to prove the *adapter's* three
+ * duties over the real wire, not any semantic layer above it: inbound mu-law
+ * normalizes to canonical frames, outbound canonical frames de-normalize back
+ * onto the wire, `clear()` flushes the provider queue for barge-in, and every
+ * call ends with exactly one `call-ended`. (The semantic pipeline is
+ * exercised in `examples/twilio-on-ws`, which owns it.)
  *
  * This is also where `call.media.twilio(ws)` proves the structural-typing
  * claim in call-sdk's `MediaSocket` doc comment: a raw `ws` `WebSocket`
@@ -24,15 +28,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import {
-  attachVoice,
-  createEnergyVadStage,
-  createSilenceTurnStage,
-  type VoiceSession,
-} from "@call-adapter/pipeline";
-import {
   adapterContract,
-  createMockSttStage,
-  createMockTtsStage,
   parseTwiml,
   recordEvents,
   routingContract,
@@ -47,12 +43,16 @@ import { computeTwilioSignature } from "./signature";
 const AUTH_TOKEN = "test-auth-token";
 const WEBHOOK_PATH = "/twilio/voice";
 const MEDIA_PATH = "/twilio/media";
-// Long enough that the simulated playback window (proportional to length)
-// comfortably outlasts a barge-in injected shortly after the mark request,
-// short enough to keep the test fast.
-const RESPONSE_TEXT =
-  "This is the fixed agent reply used to validate the full duplex loop end to end.";
-const TRANSCRIPT_TRIGGER = "hello there";
+const CANONICAL_SAMPLES_PER_FRAME = 320;
+
+// A ~1s outbound playback window (50 canonical 20ms frames): long enough that
+// a barge-in injected shortly after the mark request lands while the utterance
+// is still "playing", short enough to keep the test fast.
+const OUTBOUND_FRAMES = 50;
+// A run of silent inbound frames that ends the caller's turn (~60ms).
+const END_OF_TURN_SILENCE_FRAMES = 3;
+// Canonical inbound amplitude above which a frame counts as speech.
+const SPEECH_AMPLITUDE = 1000;
 
 async function waitForSession(
   call: Call,
@@ -74,10 +74,68 @@ async function waitForSession(
   }
 }
 
+/**
+ * A minimal media-plane consumer driving `session.audio` directly — no
+ * pipeline. A tiny silence-based turn detector: once the caller has spoken
+ * and then gone quiet, it writes a fixed burst of outbound frames plus a
+ * playback mark (the "reply"); fresh caller speech while that reply is still
+ * playing is treated as barge-in and flushes the outbound queue via `clear()`.
+ * Just enough behavior to drive the adapter's full duplex wire path.
+ */
+function attachRawDuplexAgent(session: CallSession): void {
+  let speaking = false;
+  let sawSpeech = false;
+  let silenceRun = 0;
+  let uttered = 0;
+
+  const speak = (): void => {
+    speaking = true;
+    uttered += 1;
+    for (let i = 0; i < OUTBOUND_FRAMES; i++) {
+      session.audio.write({
+        samples: new Int16Array(CANONICAL_SAMPLES_PER_FRAME),
+        timestamp: i * 20,
+      });
+    }
+    session.audio.mark(`utt-${uttered}`);
+  };
+
+  // Playback completed (the provider echoed our mark) — back to idle.
+  session.bus.subscribe("audio-mark", () => {
+    speaking = false;
+    sawSpeech = false;
+    silenceRun = 0;
+  });
+
+  session.bus.subscribe("audio-frame", ({ frame }) => {
+    const energetic = frame.samples.some((s) => Math.abs(s) > SPEECH_AMPLITUDE);
+    if (speaking) {
+      if (energetic) {
+        // Barge-in: the caller talks over the reply — flush the queue.
+        session.audio.clear();
+        speaking = false;
+        sawSpeech = false;
+        silenceRun = 0;
+      }
+      return;
+    }
+    if (energetic) {
+      sawSpeech = true;
+      silenceRun = 0;
+      return;
+    }
+    if (sawSpeech) {
+      silenceRun += 1;
+      if (silenceRun >= END_OF_TURN_SILENCE_FRAMES) {
+        speak();
+      }
+    }
+  });
+}
+
 interface Harness {
   baseUrl: string;
   call: Call;
-  voices: Map<string, VoiceSession>;
 }
 
 async function startHarness(): Promise<{
@@ -100,28 +158,8 @@ async function startHarness(): Promise<{
     adapters: { twilio: twilioAdapter },
     logger: "silent",
   });
-  const voices = new Map<string, VoiceSession>();
   call.onCallStarted((session) => {
-    // Attached synchronously so the buffered inbound audio replays into the
-    // stages once they finish attaching.
-    voices.set(
-      session.id,
-      attachVoice(session, {
-        logger: "silent",
-        stages: [
-          // Shrunk windows so VAD/turn detection resolve in tens of ms
-          // instead of the real-world hundreds-of-ms defaults — this is a
-          // test, not a production latency profile.
-          createEnergyVadStage({ activationFrames: 1, hangoverMs: 60 }),
-          createMockSttStage({ script: [{ final: TRANSCRIPT_TRIGGER }] }),
-          createSilenceTurnStage({ silenceMs: 60, finalGraceMs: 200 }),
-          createMockTtsStage({ msPerChar: 15, chunkMs: 20 }),
-        ],
-        onEndOfTurn: (_turn, voice) => {
-          void voice.say(RESPONSE_TEXT);
-        },
-      })
-    );
+    attachRawDuplexAgent(session);
   });
 
   server.on("request", (req, res) => {
@@ -173,7 +211,7 @@ async function startHarness(): Promise<{
     await new Promise<void>((resolve) => server.close(() => resolve()));
   };
 
-  return { harness: { baseUrl, call, voices }, stop };
+  return { harness: { baseUrl, call }, stop };
 }
 
 describe("Twilio adapter mini integration", () => {
@@ -201,7 +239,7 @@ describe("Twilio adapter mini integration", () => {
     expect(fake.streamUrl).toBe("");
   });
 
-  it("drives a full turn: caller speech -> transcript -> agent reply -> mark echo -> agent-speech-end", async () => {
+  it("drives a full duplex turn: inbound mu-law normalizes to frames, outbound frames + mark reach the wire, mark echoes back", async () => {
     const callSid = "CAfullloop00000000000000000000000";
     const fake = await startFakeTwilioCall({
       baseUrl: harness.baseUrl,
@@ -210,31 +248,31 @@ describe("Twilio adapter mini integration", () => {
       callSid,
     });
     expect(fake.twimlResponse.status).toBe(200);
+    expect(fake.twimlResponse.body).toContain("<Connect><Stream");
 
     const session = await waitForSession(harness.call, `twilio:${callSid}`);
-    const voice = harness.voices.get(session.id);
-    if (!voice) {
-      throw new Error("voice pipeline was not attached");
-    }
-    const recorded = recordEvents(voice.bus);
+    const recorded = recordEvents(session.bus);
 
     await fake.speak({ ms: 300, kind: "tone" });
     await fake.speak({ ms: 200, kind: "silence" });
 
-    // end-of-turn -> onEndOfTurn -> voice.say() -> audio-out -> outbound
-    // media frames flow back to the fake client.
+    // Inbound mu-law was normalized and delivered as canonical PCM16 frames.
+    const inbound = recorded.of("audio-frame");
+    expect(inbound.length).toBeGreaterThan(0);
+    for (const { frame } of inbound) {
+      expect(frame.samples).toBeInstanceOf(Int16Array);
+      expect(frame.samples.length).toBe(CANONICAL_SAMPLES_PER_FRAME);
+    }
+
+    // caller silence -> end-of-turn -> the inline agent writes outbound frames
+    // + a mark, which de-normalize back onto the wire.
     await fake.waitFor((r) => r.mediaMs > 0, 3000);
     await fake.waitFor((r) => r.marks.length > 0, 3000);
 
     // autoEchoMarks (default on) echoes the mark back once its simulated
-    // playback window elapses, which resolves the utterance.
-    await fake.waitFor(() => recorded.of("agent-speech-end").length > 0, 3000);
-
-    const speechEnds = recorded.of("agent-speech-end");
-    expect(speechEnds).toHaveLength(1);
-    expect(speechEnds[0].interrupted).toBe(false);
-    expect(recorded.of("end-of-turn")).toHaveLength(1);
-    expect(recorded.of("end-of-turn")[0].transcript).toBe(TRANSCRIPT_TRIGGER);
+    // playback window elapses; the adapter surfaces it as `audio-mark`.
+    await fake.waitFor(() => recorded.of("audio-mark").length > 0, 3000);
+    expect(recorded.of("audio-mark")[0].name).toBe("utt-1");
 
     await fake.hangup();
     await session.ended;
@@ -249,36 +287,26 @@ describe("Twilio adapter mini integration", () => {
       authToken: AUTH_TOKEN,
       callSid,
     });
-    const session = await waitForSession(harness.call, `twilio:${callSid}`);
-    const voice = harness.voices.get(session.id);
-    if (!voice) {
-      throw new Error("voice pipeline was not attached");
-    }
-    const recorded = recordEvents(voice.bus);
+    // Ensure the media session actually connected before driving audio.
+    await waitForSession(harness.call, `twilio:${callSid}`);
 
     await fake.speak({ ms: 300, kind: "tone" });
     await fake.speak({ ms: 200, kind: "silence" });
 
     // Wait for the agent to start talking (mark request queued behind its
     // audio) but NOT for the mark echo — the simulated playback window is
-    // still open, so the utterance is still active from the SDK's POV.
+    // still open, so the utterance is still "playing" from the SDK's POV.
     await fake.waitFor((r) => r.marks.length > 0, 3000);
     expect(fake.received.clears).toBe(0);
 
-    // Barge in: 1 activation frame (20ms) is enough to flip VAD to speaking
-    // while state is still "agent-speaking".
+    // Barge in: fresh caller speech while the reply is still playing.
     await fake.speak({ ms: 60, kind: "tone" });
 
     await fake.waitFor((r) => r.clears === 1, 2000);
     const mediaMsAtInterrupt = fake.received.mediaMs;
     await delay(150);
+    // Media flow plateaus: nothing more is written once the clear fires.
     expect(fake.received.mediaMs).toBe(mediaMsAtInterrupt);
-
-    const interrupted = recorded
-      .of("agent-speech-end")
-      .filter((e) => e.interrupted);
-    expect(interrupted.length).toBeGreaterThanOrEqual(1);
-    expect(recorded.of("interruption").length).toBeGreaterThanOrEqual(1);
 
     await fake.hangup();
   });
