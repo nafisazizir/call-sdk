@@ -8,14 +8,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx --env-file-if-exists=.env src/index.ts",
     "build": "echo 'no build step'",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "start-call": "tsx src/start-call.ts"
+    "start-call": "tsx --env-file-if-exists=.env src/start-call.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.5",
     "@call-adapter/stt-deepgram": "workspace:*",
     "@call-adapter/tts-elevenlabs": "workspace:*",
     "@call-adapter/twilio": "workspace:*",

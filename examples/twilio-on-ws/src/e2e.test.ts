@@ -118,6 +118,10 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
         createSilenceTurnStage({ silenceMs: 60, finalGraceMs: 200 }),
         createMockTtsStage({ msPerChar: 15, chunkMs: 20 }),
       ],
+      // Instant barge-in: this suite tests the interruption *mechanism*
+      // deterministically, not the example's noise-robust default
+      // (`minSpeechMs: 500`), which would require sustained tone to trip.
+      interruption: { minSpeechMs: 0 },
       agent: async (
         turn: CallEventMap["end-of-turn"],
         session: CallSession
