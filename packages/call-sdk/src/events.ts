@@ -6,10 +6,10 @@ import type { TelemetryMark } from "./telemetry.js";
  *
  * The core stops at the media boundary — call lifecycle, normalized audio
  * frames, provider playback marks, errors, telemetry. Everything semantic
- * (speech, transcripts, turns, agent speech) belongs to the optional
- * pipeline: `@call-adapter/pipeline` merges its event types into this map
- * via TypeScript declaration merging, so `CallEventMap` widens automatically
- * for any consumer that imports the pipeline.
+ * (speech, transcripts, turns, agent speech) belongs to the consumer's
+ * pipeline: a consumer merges its event types into this map via TypeScript
+ * declaration merging (`declare module "call-sdk"`), so `CallEventMap`
+ * widens automatically — see `examples/twilio-on-ws/src/pipeline/events.ts`.
  *
  * Naming rules, so new event types stay consistent:
  *

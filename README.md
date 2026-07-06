@@ -39,7 +39,7 @@ Call SDK is not a voice-AI framework. It is the telephony layer such a framework
 - **Outbound calls** — `call.dial({ adapter: "twilio", to })` returns a live session.
 - **Real-time voice applications, including AI voice agents** — route a call to `stream()`, take over its raw normalized audio, and run your own STT → logic → TTS loop on top. ([`examples/twilio-on-ws`](examples/twilio-on-ws) is the flagship: a full phone agent on the AI SDK)
 
-That last one is *one example consumer, not the SDK's purpose*. The core ships no STT, TTS, turn detection, or LLM coupling — those live in the optional [`@call-adapter/pipeline`](packages/pipeline) layer and the example, never in the core contract.
+That last one is *one example consumer, not the SDK's purpose*. The core ships no STT, TTS, turn detection, or LLM coupling — those live in the flagship example ([`examples/twilio-on-ws`](examples/twilio-on-ws)), never in the core contract.
 
 ## How it works
 
@@ -79,12 +79,10 @@ Every call ends with **exactly one terminal `call-ended` event**, on every path 
 
 ## The optional voice pipeline
 
-[`@call-adapter/pipeline`](packages/pipeline) is the reference semantic layer for voice applications — stages (VAD, turn detection), `say()` with streaming text, transcript, conversation state, barge-in policy — attached per-call on top of the public core surface:
+The reference semantic layer for voice applications — stages (VAD, turn detection, STT, TTS), `say()` with streaming text, transcript, conversation state, barge-in policy — is built entirely on the public core surface and attached per-call. It lives as plain source in the flagship example ([`examples/twilio-on-ws/src/pipeline`](examples/twilio-on-ws/src/pipeline)) **by design**: STT/TTS/VAD/turn code is a consumer's choice, not the SDK's, and it graduates to its own package (`@call-adapter/pipeline` + provider stages) only once the abstraction is proven across providers. A router or plain recorder never pulls it in.
 
 ```ts
-import { attachVoice } from "@call-adapter/pipeline";
-import { createDeepgramStage } from "@call-adapter/stt-deepgram";
-import { createElevenLabsStage } from "@call-adapter/tts-elevenlabs";
+import { attachVoice, createDeepgramStage, createElevenLabsStage } from "./pipeline";
 
 call.onIncomingCall((incoming) => incoming.stream());
 call.onCallStarted((session) => {
@@ -110,12 +108,11 @@ VAD and turn detection are injected by default; **turn detection ≠ silence det
 | --- | --- | --- |
 | [`packages/call-sdk`](packages/call-sdk) | `call-sdk` | **Thin core** — `Call`, `CallSession`, call-control verbs, lifecycle events, normalized audio boundary. No semantics. |
 | [`packages/adapter-twilio`](packages/adapter-twilio) | `@call-adapter/twilio` | Twilio adapter: TwiML verb translation + raw Media Streams. |
-| [`packages/pipeline`](packages/pipeline) | `@call-adapter/pipeline` | **Optional** voice pipeline: stages, `attachVoice`, `say()`, transcript, barge-in policy. |
-| [`packages/stt-deepgram`](packages/stt-deepgram) | `@call-adapter/stt-deepgram` | Optional Deepgram transcription stage (example dependency). |
-| [`packages/tts-elevenlabs`](packages/tts-elevenlabs) | `@call-adapter/tts-elevenlabs` | Optional ElevenLabs synthesis stage (example dependency). |
-| [`packages/tests`](packages/tests) | `@call-adapter/tests` | Conformance suites (adapter, routing, stage), mocks, and a protocol-accurate fake Twilio client. |
+| [`packages/tests`](packages/tests) | `@call-adapter/tests` | Conformance suites (adapter, routing), mocks, and a protocol-accurate fake Twilio client. Depends only on `call-sdk`. |
 | [`examples/call-router`](examples/call-router) | `example-call-router` | The headline use case: reject/forward/voicemail router, control plane only, no media. |
-| [`examples/twilio-on-ws`](examples/twilio-on-ws) | `example-twilio-on-ws` | The flagship voice app: Twilio + Deepgram + ElevenLabs + the AI SDK. |
+| [`examples/twilio-on-ws`](examples/twilio-on-ws) | `example-twilio-on-ws` | The flagship voice app: Twilio + the AI SDK, and the reference voice pipeline (VAD/turn detection + Deepgram STT + ElevenLabs TTS) as example source in [`src/pipeline`](examples/twilio-on-ws/src/pipeline). |
+
+The published package surface is deliberately just those three (`call-sdk`, `@call-adapter/twilio`, `@call-adapter/tests`). The STT/TTS/VAD/turn-detection pipeline lives in the example until the multi-provider abstraction is proven, then graduates to packages.
 
 ## Event taxonomy
 

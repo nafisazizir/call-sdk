@@ -6,9 +6,8 @@ import type { IncomingCallInit, RoutingDecision } from "./routing.js";
 
 /**
  * The contracts of the Call SDK: `Adapter` (one per telephony/voice
- * provider) and `Stage` (one per pipeline processing unit), plus the small
- * runtime interfaces that connect them to the core (`MediaSocket`,
- * `AdapterContext`, `StageContext`, ...).
+ * provider) plus the small runtime interfaces that connect it to the core
+ * (`MediaSocket`, `AdapterContext`, `OutboundAudio`, ...).
  *
  * Per SPEC.md, an adapter does exactly three things: emit call lifecycle
  * events, execute call-control instructions (translate the SDK's
