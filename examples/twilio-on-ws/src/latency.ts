@@ -1,9 +1,10 @@
-import type { CallSession, TelemetryMark, TurnLatencySummary } from "call-sdk";
+import type { TurnLatencySummary, VoiceSession } from "@call-adapter/pipeline";
+import type { TelemetryMark } from "call-sdk";
 
 /**
  * Per-turn latency waterfall. Turns "the call feels slow" into a labeled
  * breakdown of where the milliseconds actually go, using the marks the SDK
- * already records (SessionTelemetry). Call it right after `session.say(...)`
+ * already records (SessionTelemetry). Call it right after `voice.say(...)`
  * resolves — by then every mark for the turn has landed.
  *
  * The segments, caller-silence to first agent audio:
@@ -12,19 +13,21 @@ import type { CallSession, TelemetryMark, TurnLatencySummary } from "call-sdk";
  *   llm-first    say-called  -> tts-request      (LLM time to first sentence)
  *   tts-ttfb     tts-request -> tts-first-byte   (ElevenLabs time to first byte)
  */
-export function printTurnLatency(session: CallSession): void {
-  const turn = session.telemetry.turns.at(-1);
-  if (!turn) return;
-  const line = formatTurnLatency(turn, session.telemetry.marks);
+export function printTurnLatency(voice: VoiceSession): void {
+  const turn = voice.turns.at(-1);
+  if (!turn) {
+    return;
+  }
+  const line = formatTurnLatency(turn, voice.session.telemetry.marks);
   // eslint-disable-next-line no-console
   console.log(line);
 }
 
 interface Segment {
-  label: string;
-  ms: number | undefined;
   /** Segments the operator can actually tune; the bottleneck banner ranks these. */
   actionable: boolean;
+  label: string;
+  ms: number | undefined;
 }
 
 export function formatTurnLatency(
@@ -32,8 +35,16 @@ export function formatTurnLatency(
   marks: readonly TelemetryMark[]
 ): string {
   // LLM vs TTS split needs the stage-level marks the summary doesn't carry.
-  const ttsRequestAt = firstMarkAtOrAfter(marks, "tts-request", turn.endOfTurnAt);
-  const ttsFirstByteAt = firstMarkAtOrAfter(marks, "tts-first-byte", ttsRequestAt);
+  const ttsRequestAt = firstMarkAtOrAfter(
+    marks,
+    "tts-request",
+    turn.endOfTurnAt
+  );
+  const ttsFirstByteAt = firstMarkAtOrAfter(
+    marks,
+    "tts-first-byte",
+    ttsRequestAt
+  );
 
   const segments: Segment[] = [
     {
@@ -70,14 +81,18 @@ export function formatTurnLatency(
 
   const rows = segments
     .map((s) => {
-      const val = s.ms === undefined ? "  —  " : `${Math.round(s.ms)}ms`.padStart(7);
-      const flag = bottleneck && s.label === bottleneck.label ? "  <-- bottleneck" : "";
+      const val =
+        s.ms === undefined ? "  —  " : `${Math.round(s.ms)}ms`.padStart(7);
+      const flag =
+        bottleneck && s.label === bottleneck.label ? "  <-- bottleneck" : "";
       return `    ${s.label.padEnd(28)} ${val}${flag}`;
     })
     .join("\n");
 
   const v2v =
-    turn.voiceToVoiceMs === undefined ? "?" : `${Math.round(turn.voiceToVoiceMs)}ms`;
+    turn.voiceToVoiceMs === undefined
+      ? "?"
+      : `${Math.round(turn.voiceToVoiceMs)}ms`;
   const resp =
     turn.responseLatencyMs === undefined
       ? "?"
@@ -89,8 +104,13 @@ export function formatTurnLatency(
   );
 }
 
-function delta(from: number | undefined, to: number | undefined): number | undefined {
-  if (from === undefined || to === undefined) return undefined;
+function delta(
+  from: number | undefined,
+  to: number | undefined
+): number | undefined {
+  if (from === undefined || to === undefined) {
+    return undefined;
+  }
   return to - from;
 }
 
@@ -99,9 +119,13 @@ function firstMarkAtOrAfter(
   name: string,
   at: number | undefined
 ): number | undefined {
-  if (at === undefined) return undefined;
+  if (at === undefined) {
+    return undefined;
+  }
   for (const mark of marks) {
-    if (mark.name === name && mark.at >= at) return mark.at;
+    if (mark.name === name && mark.at >= at) {
+      return mark.at;
+    }
   }
   return undefined;
 }

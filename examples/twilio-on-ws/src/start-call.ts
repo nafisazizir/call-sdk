@@ -19,7 +19,7 @@ const { call, listen } = createCallServer({
 const server = await listen(Number(process.env.PORT ?? 3000));
 
 console.log(`Dialing ${to}...`);
-const session = await call.startCall("twilio", { to });
+const session = await call.dial({ adapter: "twilio", to });
 console.log(`Live: ${session.id}`);
 const ended = await session.ended;
 console.log(`Call ended (${ended.reason})`);

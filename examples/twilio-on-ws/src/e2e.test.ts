@@ -14,7 +14,7 @@
  * The example's default greeting is disabled here (`greeting: null`): with it
  * on, every session would open with an extra unscripted utterance racing the
  * scripted turns, which only muddies the mark/interruption assertions below
- * without adding coverage (the greeting is just another `session.say()` call,
+ * without adding coverage (the greeting is just another `voice.say()` call,
  * already exercised implicitly by every scripted turn).
  */
 
@@ -22,20 +22,18 @@ import type { AddressInfo } from "node:net";
 import { createServer as createNetServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+  createEnergyVadStage,
+  createSilenceTurnStage,
+  type SayResult,
+  type VoiceSession,
+} from "@call-adapter/pipeline";
+import {
   createMockSttStage,
   createMockTtsStage,
   recordEvents,
   startFakeTwilioCall,
 } from "@call-adapter/tests";
-import {
-  type Call,
-  type CallEventMap,
-  type CallSession,
-  createEnergyVadStage,
-  createSilenceTurnStage,
-  type SayResult,
-  type TelemetryMark,
-} from "call-sdk";
+import type { Call, CallEventMap, CallSession, TelemetryMark } from "call-sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createCallServer, MEDIA_PATH, WEBHOOK_PATH } from "./app.js";
 
@@ -90,6 +88,7 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
   let close: () => Promise<void>;
   let marks: TelemetryMark[];
   let sayResults: SayResult[];
+  let voices: Map<string, VoiceSession>;
 
   beforeEach(async () => {
     marks = [];
@@ -122,12 +121,9 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
       // deterministically, not the example's noise-robust default
       // (`minSpeechMs: 500`), which would require sustained tone to trip.
       interruption: { minSpeechMs: 0 },
-      agent: async (
-        turn: CallEventMap["end-of-turn"],
-        session: CallSession
-      ) => {
+      agent: async (turn: CallEventMap["end-of-turn"], voice: VoiceSession) => {
         const text = turn.turnIndex === 1 ? LONG_RESPONSE : SHORT_RESPONSE;
-        const result = await session.say(text);
+        const result = await voice.say(text);
         sayResults.push(result);
       },
       greeting: null,
@@ -137,6 +133,7 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
     });
 
     call = server.call;
+    voices = server.voices;
     const listening = await server.listen(port);
     baseUrl = `http://127.0.0.1:${listening.port}`;
     close = listening.close;
@@ -145,6 +142,14 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
   afterEach(async () => {
     await close();
   });
+
+  async function getVoice(sessionId: string): Promise<VoiceSession> {
+    const voice = voices.get(sessionId);
+    if (!voice) {
+      throw new Error(`voice pipeline was not attached for ${sessionId}`);
+    }
+    return voice;
+  }
 
   it("happy path: caller speech -> transcript -> agent reply -> mark echo -> agent-speech-end, across two turns", async () => {
     const callSid = "CAhappypath0000000000000000000000";
@@ -158,13 +163,14 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
     expect(fake.twimlResponse.body).toContain("<Connect><Stream");
 
     const session = await waitForSession(call, `twilio:${callSid}`);
-    const recorded = recordEvents(session.bus);
+    const voice = await getVoice(session.id);
+    const recorded = recordEvents(voice.bus);
 
     // Low-level bus tap (SPEC.md, "Two Entry Points, One Graph") — observed
     // independently of the `recordEvents` helper used for the rest of the
     // assertions below.
     let firstSpeechEndViaOn: CallEventMap["agent-speech-end"] | undefined;
-    session.on("agent-speech-end", (payload) => {
+    voice.on("agent-speech-end", (payload) => {
       firstSpeechEndViaOn ??= payload;
     });
 
@@ -172,7 +178,7 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
     await fake.speak({ ms: 300, kind: "tone" });
     await fake.speak({ ms: 200, kind: "silence" });
 
-    // end-of-turn -> onEndOfTurn -> session.say() -> audio-out -> outbound
+    // end-of-turn -> onEndOfTurn -> voice.say() -> audio-out -> outbound
     // media frames flow back to the fake client -> mark request -> echo.
     await fake.waitFor((r) => r.mediaMs > 0, 5000);
     await fake.waitFor((r) => r.marks.length > 0, 5000);
@@ -201,7 +207,7 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
       TURN_2_TRANSCRIPT,
     ]);
 
-    expect(session.transcript).toEqual(
+    expect(voice.transcript).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ role: "user", text: TURN_1_TRANSCRIPT }),
         expect.objectContaining({ role: "agent", text: LONG_RESPONSE }),
@@ -210,7 +216,7 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
       ])
     );
 
-    const turns = session.telemetry.turns;
+    const turns = voice.turns;
     expect(turns).toHaveLength(2);
     expect(turns[0]?.responseLatencyMs).toBeGreaterThan(0);
     // Printed once for the README (M7): the measured happy-path latency
@@ -233,7 +239,8 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
       callSid,
     });
     const session = await waitForSession(call, `twilio:${callSid}`);
-    const recorded = recordEvents(session.bus);
+    const voice = await getVoice(session.id);
+    const recorded = recordEvents(voice.bus);
 
     await fake.speak({ ms: 300, kind: "tone" });
     await fake.speak({ ms: 200, kind: "silence" });
@@ -263,7 +270,7 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
     await fake.hangup();
     await session.ended;
 
-    // The scripted agent's `session.say()` call for turn 1 must resolve
+    // The scripted agent's `voice.say()` call for turn 1 must resolve
     // as interrupted, not hang or resolve as a clean completion.
     expect(sayResults).toHaveLength(1);
     expect(sayResults[0]?.interrupted).toBe(true);
@@ -281,7 +288,8 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
     // `call.sessions` on teardown, but the reference (and its telemetry)
     // stays valid.
     const session = await waitForSession(call, `twilio:${callSid}`);
-    const recorded = recordEvents(session.bus);
+    const voice = await getVoice(session.id);
+    const recorded = recordEvents(voice.bus);
 
     await fake.speak({ ms: 300, kind: "tone" });
     await fake.speak({ ms: 200, kind: "silence" });
@@ -295,13 +303,14 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
 
     expect(recorded.of("call-ended")).toHaveLength(1);
     expect(call.sessions.size).toBe(0);
+    expect(voices.has(session.id)).toBe(false);
 
     // A second, redundant teardown attempt must not double the event.
     await session.end("local-end");
     expect(recorded.of("call-ended")).toHaveLength(1);
 
     expect(marks.some((m) => m.name === "say-called")).toBe(true);
-    const turns = session.telemetry.turns;
+    const turns = voice.turns;
     expect(turns.length).toBeGreaterThan(0);
     expect(turns[0]?.responseLatencyMs).toBeGreaterThan(0);
   }, 20_000);

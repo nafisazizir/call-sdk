@@ -1,4 +1,10 @@
 import { createServer, type IncomingMessage } from "node:http";
+import {
+  attachVoice,
+  createEnergyVadStage,
+  type Stage,
+  type VoiceSession,
+} from "@call-adapter/pipeline";
 import { createDeepgramStage } from "@call-adapter/stt-deepgram";
 import { createElevenLabsStage } from "@call-adapter/tts-elevenlabs";
 import {
@@ -9,10 +15,8 @@ import {
   Call,
   type CallEventMap,
   type CallSession,
-  createEnergyVadStage,
   type Logger,
   type LogLevel,
-  type Stage,
   type TelemetrySink,
 } from "call-sdk";
 import { WebSocketServer } from "ws";
@@ -45,7 +49,7 @@ export interface CallServerOptions {
   /** Per-turn agent logic. Default: GPT-5 nano via the AI SDK + Vercel AI Gateway. */
   agent?: (
     turn: CallEventMap["end-of-turn"],
-    session: CallSession
+    voice: VoiceSession
   ) => void | Promise<void>;
   /** Spoken when the call connects. Pass null to disable. */
   greeting?: string | null;
@@ -67,9 +71,9 @@ export interface CallServerOptions {
 }
 
 /**
- * The whole example, spec-scale: a `Call` with the Twilio adapter and a
- * pipeline, mounted on a plain node:http server + `ws` — the SDK dictates no
- * host (SPEC.md, Transport & Runtime).
+ * The whole example, spec-scale: a `Call` with the Twilio adapter, the voice
+ * pipeline attached per-call via `attachVoice`, mounted on a plain node:http
+ * server + `ws` — the SDK dictates no host (SPEC.md, Transport & Runtime).
  */
 export function createCallServer(options: CallServerOptions = {}) {
   const greeting =
@@ -77,6 +81,7 @@ export function createCallServer(options: CallServerOptions = {}) {
       ? "Hi! How can I help you today?"
       : options.greeting;
   const agent = options.agent ?? defaultAgent;
+  const voices = new Map<string, VoiceSession>();
 
   const call = new Call({
     adapters: {
@@ -85,26 +90,41 @@ export function createCallServer(options: CallServerOptions = {}) {
         ...options.twilio,
       }),
     },
-    stages: options.stages ?? [
-      createEnergyVadStage(NOISE_ROBUST_VAD),
-      createDeepgramStage(),
-      createElevenLabsStage(),
-    ],
-    interruption: {
-      minSpeechMs: options.interruption?.minSpeechMs ?? DEFAULT_MIN_SPEECH_MS,
-    },
     ...(options.logger === undefined ? {} : { logger: options.logger }),
     ...(options.telemetrySink
       ? { telemetry: { sink: options.telemetrySink } }
       : {}),
-    ...(greeting === null
-      ? {}
-      : {
-          onCallStarted: (session: CallSession) => {
-            void session.say(greeting);
-          },
-        }),
-    onEndOfTurn: agent,
+  });
+
+  // Routing decision: stream every call to the media plane. This is the
+  // pre-routing default made explicit — with no `onIncomingCall` handler
+  // registered at all, core already streams every call; this example just
+  // says so out loud.
+  call.onIncomingCall((incoming) => incoming.stream());
+
+  // Attached synchronously (no `await` before it) so no buffered inbound
+  // audio is missed while the stage graph attaches in the background.
+  call.onCallStarted((session: CallSession) => {
+    const voice = attachVoice(session, {
+      stages: options.stages ?? [
+        createEnergyVadStage(NOISE_ROBUST_VAD),
+        createDeepgramStage(),
+        createElevenLabsStage(),
+      ],
+      interruption: {
+        minSpeechMs: options.interruption?.minSpeechMs ?? DEFAULT_MIN_SPEECH_MS,
+      },
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
+      onEndOfTurn: agent,
+    });
+    voices.set(session.id, voice);
+    if (greeting !== null) {
+      void voice.say(greeting);
+    }
+  });
+
+  call.onCallEnded((_event, session) => {
+    voices.delete(session.id);
   });
 
   async function listen(port = 3000) {
@@ -156,7 +176,7 @@ export function createCallServer(options: CallServerOptions = {}) {
     };
   }
 
-  return { call, listen };
+  return { call, listen, voices };
 }
 
 /** Adapts a node:http request into a WHATWG Request (honoring proxy scheme headers). */

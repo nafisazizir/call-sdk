@@ -1,5 +1,6 @@
+import type { TranscriptEntry, VoiceSession } from "@call-adapter/pipeline";
 import { type ModelMessage, streamText } from "ai";
-import type { CallEventMap, CallSession, TranscriptEntry } from "call-sdk";
+import type { CallEventMap } from "call-sdk";
 import { printTurnLatency } from "./latency.js";
 
 /**
@@ -25,25 +26,25 @@ export function toModelMessages(
 
 /**
  * The default agent: one LLM round-trip per caller turn, streamed straight
- * into TTS. `session.transcript` already contains the turn that triggered
+ * into TTS. `voice.transcript` already contains the turn that triggered
  * this handler, so no extra message assembly is needed.
  */
 export async function defaultAgent(
   _turn: CallEventMap["end-of-turn"],
-  session: CallSession
+  voice: VoiceSession
 ): Promise<void> {
   const { textStream } = streamText({
     model: MODEL,
     system: SYSTEM_PROMPT,
-    messages: toModelMessages(session.transcript),
+    messages: toModelMessages(voice.transcript),
     // GPT-5 is a reasoning model; with reasoning left on it "thinks" for
     // 5–6s before the first token — dead air on a live call. `minimal`
     // collapses time-to-first-token to ~860ms with no quality loss for
     // short spoken replies. See src/llm-probe.ts for the measurement.
     providerOptions: { openai: { reasoningEffort: "minimal" } },
   });
-  await session.say(textStream);
+  await voice.say(textStream);
   // Per-turn latency breakdown — shows which segment is slow. Remove or gate
   // behind an env flag once you've tuned things.
-  printTurnLatency(session);
+  printTurnLatency(voice);
 }

@@ -11,7 +11,10 @@ const SYSTEM =
   "You are a friendly phone agent. You are on a live voice call, so keep " +
   "answers short, conversational, and speakable — no lists, no markdown.";
 const MESSAGES: ModelMessage[] = [
-  { role: "user", content: "Hey, what's the weather like where you are today?" },
+  {
+    role: "user",
+    content: "Hey, what's the weather like where you are today?",
+  },
 ];
 
 // `undefined` = provider default (reasoning on); the rest force it down.
@@ -35,7 +38,9 @@ async function probe(effort: string | undefined): Promise<void> {
   });
 
   for await (const delta of textStream) {
-    if (firstTokenAt === undefined) firstTokenAt = performance.now() - start;
+    if (firstTokenAt === undefined) {
+      firstTokenAt = performance.now() - start;
+    }
     acc += delta;
     if (firstSentenceAt === undefined && SENTENCE_END.test(acc)) {
       firstSentenceAt = performance.now() - start;
@@ -43,7 +48,8 @@ async function probe(effort: string | undefined): Promise<void> {
   }
 
   const label = (effort ?? "default").padEnd(8);
-  const ttft = firstTokenAt === undefined ? "—" : `${Math.round(firstTokenAt)}ms`;
+  const ttft =
+    firstTokenAt === undefined ? "—" : `${Math.round(firstTokenAt)}ms`;
   const sent =
     firstSentenceAt === undefined ? "—" : `${Math.round(firstSentenceAt)}ms`;
   console.log(
@@ -51,8 +57,10 @@ async function probe(effort: string | undefined): Promise<void> {
   );
 }
 
+const FIRST_SENTENCE_RE = /^.*?[.!?]/;
+
 function firstSentence(text: string): string {
-  const m = text.match(/^.*?[.!?]/);
+  const m = text.match(FIRST_SENTENCE_RE);
   return (m ? m[0] : text).slice(0, 60);
 }
 

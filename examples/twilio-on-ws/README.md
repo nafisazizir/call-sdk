@@ -9,22 +9,29 @@ const call = new Call({
   adapters: {
     twilio: createTwilioAdapter({ mediaPath: "/twilio/media" }),
   },
-  stages: [createDeepgramStage(), createElevenLabsStage()],
-  onCallStarted: (session) => {
-    void session.say("Hi! How can I help you today?");
-  },
-  onEndOfTurn: async (_turn, session) => {
-    const { textStream } = streamText({
-      model: "openai/gpt-5-nano", // via the Vercel AI Gateway
-      system: SYSTEM_PROMPT,
-      messages: toModelMessages(session.transcript),
-    });
-    await session.say(textStream);
-  },
+});
+
+// Behavior is registered with methods after construction.
+call.onIncomingCall((incoming) => incoming.stream());
+call.onCallStarted((session) => {
+  // Attached synchronously so no buffered inbound audio is missed while the
+  // stage graph attaches in the background.
+  const voice = attachVoice(session, {
+    stages: [createDeepgramStage(), createElevenLabsStage()],
+    onEndOfTurn: async (_turn, voice) => {
+      const { textStream } = streamText({
+        model: "openai/gpt-5-nano", // via the Vercel AI Gateway
+        system: SYSTEM_PROMPT,
+        messages: toModelMessages(voice.transcript),
+      });
+      await voice.say(textStream);
+    },
+  });
+  void voice.say("Hi! How can I help you today?");
 });
 ```
 
-Mount `call.webhooks.twilio` on your HTTP route and `call.media.twilio` on your WebSocket route (see [`src/app.ts`](src/app.ts) for the ~30 lines of `node:http` + `ws` glue) and you have a working phone agent. `call-sdk` supplies the VAD and turn-detection stages by default; Deepgram (STT), ElevenLabs (TTS), and the LLM (GPT-5 nano via the AI SDK + Vercel AI Gateway) are swappable at the edges — see [`src/agent.ts`](src/agent.ts) for the LLM call.
+Mount `call.webhooks.twilio` on your HTTP route and `call.media.twilio` on your WebSocket route (see [`src/app.ts`](src/app.ts) for the ~30 lines of `node:http` + `ws` glue) and you have a working phone agent. `@call-adapter/pipeline`'s `attachVoice` supplies the VAD and turn-detection stages by default; Deepgram (STT), ElevenLabs (TTS), and the LLM (GPT-5 nano via the AI SDK + Vercel AI Gateway) are swappable at the edges — see [`src/agent.ts`](src/agent.ts) for the LLM call.
 
 ## Environment variables
 
@@ -63,7 +70,7 @@ This starts the server, places the call via Twilio's REST API, waits for the med
 
 ## Swapping pieces
 
-- **LLM**: swap the `"openai/gpt-5-nano"` model string in [`src/agent.ts`](src/agent.ts) for any other [AI Gateway](https://vercel.com/docs/ai-gateway) model, or drop in an explicit [AI SDK](https://ai-sdk.dev) provider — the only contract is producing a `string | AsyncIterable<string>` for `session.say()`.
+- **LLM**: swap the `"openai/gpt-5-nano"` model string in [`src/agent.ts`](src/agent.ts) for any other [AI Gateway](https://vercel.com/docs/ai-gateway) model, or drop in an explicit [AI SDK](https://ai-sdk.dev) provider — the only contract is producing a `string | AsyncIterable<string>` for `voice.say()`.
 - **STT / TTS / VAD / turn detection**: all pipeline stages are swappable via `createCallServer`'s `stages` option ([`src/app.ts`](src/app.ts)) — swap `createDeepgramStage()` / `createElevenLabsStage()` for other providers, or layer in your own VAD/turn-detection stage, without touching the rest of the wiring.
 - **Agent logic**: pass a different `agent` function to `createCallServer` to change what happens on every caller turn, independent of the transport.
 
@@ -94,8 +101,8 @@ createCallServer({
 It covers:
 
 - **Happy path** — caller speech → transcript → agent reply → mark echo → `agent-speech-end`, across two turns.
-- **Barge-in** — caller speech mid-response interrupts playback exactly once and resolves the in-flight `session.say()` as `{ interrupted: true }`.
-- **Teardown + telemetry** — exactly one `call-ended` event, `call.sessions` clears, and `session.telemetry.turns` reports a positive `responseLatencyMs`.
+- **Barge-in** — caller speech mid-response interrupts playback exactly once and resolves the in-flight `voice.say()` as `{ interrupted: true }`.
+- **Teardown + telemetry** — exactly one `call-ended` event, `call.sessions` clears, and `voice.turns` reports a positive `responseLatencyMs`.
 - **Signature rejection** — a webhook signed with the wrong auth token gets a `403` and never opens a media session.
 
 Run it with:
