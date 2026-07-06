@@ -9,14 +9,14 @@
  * `Call` without a live account.
  */
 export interface TwilioAdapterConfig {
-  /** Defaults to `process.env.TWILIO_ACCOUNT_SID`. Required by `startCall`. */
+  /** Defaults to `process.env.TWILIO_ACCOUNT_SID`. Required by `dial`. */
   accountSid?: string;
   /**
    * The base URL of Twilio's REST API. Overridable for tests (a local fake
    * server) — defaults to `"https://api.twilio.com"`.
    */
   apiBaseUrl?: string;
-  /** Defaults to `process.env.TWILIO_AUTH_TOKEN`. Required for signature validation and `startCall`. */
+  /** Defaults to `process.env.TWILIO_AUTH_TOKEN`. Required for signature validation and `dial`. */
   authToken?: string;
   /** Path the media WebSocket is mounted on. Defaults to `"/twilio/media"`. */
   mediaPath?: string;
@@ -24,10 +24,10 @@ export interface TwilioAdapterConfig {
    * The absolute `wss://` URL Twilio should dial for the media stream. When
    * unset, inbound webhooks derive it from the request's `Host` header
    * (`wss://{host}{mediaPath}`) — but outbound calls have no inbound request
-   * to derive it from, so `mediaUrl` is required for `startCall`.
+   * to derive it from, so `mediaUrl` is required for `dial`.
    */
   mediaUrl?: string;
-  /** Defaults to `process.env.TWILIO_PHONE_NUMBER`. Used as `startCall`'s default `from`. */
+  /** Defaults to `process.env.TWILIO_PHONE_NUMBER`. Used as `dial`'s default `from`. */
   phoneNumber?: string;
   /**
    * Whether inbound webhooks validate `X-Twilio-Signature`. Defaults to

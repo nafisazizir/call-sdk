@@ -30,6 +30,7 @@
     "call-sdk": "workspace:*"
   },
   "devDependencies": {
+    "@call-adapter/pipeline": "workspace:*",
     "@call-adapter/tests": "workspace:*",
     "@types/node": "^25.3.2",
     "@types/ws": "^8.18.1",

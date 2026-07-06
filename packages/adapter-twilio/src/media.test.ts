@@ -88,6 +88,7 @@ function makeFakeCtx() {
   const ctx: AdapterContext = {
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
     createSession,
+    routeIncomingCall: vi.fn(),
   };
   return { ctx, sessions };
 }

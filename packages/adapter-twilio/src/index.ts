@@ -9,6 +9,7 @@
 import {
   type Adapter,
   type AdapterContext,
+  type AdapterDialOptions,
   AdapterError,
   type AdapterSessionHandle,
   downsampleX2,
@@ -18,7 +19,7 @@ import {
   mulawDecode,
   mulawEncode,
   type OutboundAudio,
-  type StartCallOptions,
+  type RoutingDecision,
   upsampleX2,
   type WebhookOptions,
 } from "call-sdk";
@@ -30,11 +31,27 @@ import {
 } from "./protocol";
 import { startTwilioCall } from "./rest";
 import { validateTwilioSignature } from "./signature";
-import { connectStreamTwiml } from "./twiml";
+import { connectStreamTwiml, routingDecisionTwiml } from "./twiml";
 import type { TwilioAdapterConfig } from "./types";
 
 const DEFAULT_MEDIA_PATH = "/twilio/media";
 const DEFAULT_API_BASE_URL = "https://api.twilio.com";
+/** Query param the continuation hit (e.g. `<Record action=...>`) arrives with. */
+const CALL_SDK_ACTION_PARAM = "call_sdk_action";
+const HANGUP_TWIML =
+  '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>';
+
+/**
+ * True iff `decision` is exactly the default/no-handler `stream()` decision
+ * — the one existing case the webhook still handles via `connectStreamTwiml`
+ * rather than `routingDecisionTwiml` (a `stream` action has no standalone
+ * TwiML form; it IS the `<Connect><Stream>` hand-off).
+ */
+function isStreamOnlyDecision(decision: RoutingDecision): boolean {
+  return (
+    decision.actions.length === 1 && decision.actions[0]?.type === "stream"
+  );
+}
 
 export class TwilioAdapter implements Adapter {
   readonly name = "twilio";
@@ -53,8 +70,10 @@ export class TwilioAdapter implements Adapter {
 
   /**
    * Control plane: Twilio's inbound-call webhook. Validates the request
-   * signature (unless disabled), extracts caller metadata, and responds
-   * with TwiML that connects the call to the media plane.
+   * signature (unless disabled — this happens first and unconditionally),
+   * then either completes a previously-made decision (the `<Record
+   * action=...>` continuation hit) or hands the call to core's routing and
+   * translates the resulting `RoutingDecision` into TwiML.
    */
   async webhook(
     request: Request,
@@ -86,17 +105,65 @@ export class TwilioAdapter implements Adapter {
       );
     }
 
-    const from = params.From ?? "";
-    const to = params.To ?? "";
-    const direction = (params.Direction ?? "inbound").startsWith("outbound")
-      ? "outbound"
-      : "inbound";
-    const mediaUrl = this.#resolveInboundMediaUrl(request);
-    const twiml = connectStreamTwiml(mediaUrl, { from, to, direction });
-    return new Response(twiml, {
-      status: 200,
-      headers: { "content-type": "text/xml" },
+    // The continuation hit from a `<Record action=...>` (or any other
+    // action's callback): Twilio re-requests this URL when the action
+    // completes. This is the mechanical tail of a decision core already
+    // made, not a new routing decision, so it never calls
+    // `routeIncomingCall` again.
+    const requestUrl = new URL(request.url);
+    if (requestUrl.searchParams.get(CALL_SDK_ACTION_PARAM) === "hangup") {
+      return new Response(HANGUP_TWIML, {
+        status: 200,
+        headers: { "content-type": "text/xml" },
+      });
+    }
+
+    const from = params.From;
+    const to = params.To;
+    const decision = await ctx.routeIncomingCall({
+      callId: params.CallSid ?? "",
+      ...(from === undefined ? {} : { from }),
+      ...(to === undefined ? {} : { to }),
+      raw: params,
     });
+
+    if (isStreamOnlyDecision(decision)) {
+      const direction = (params.Direction ?? "inbound").startsWith("outbound")
+        ? "outbound"
+        : "inbound";
+      const mediaUrl = this.#resolveInboundMediaUrl(request);
+      const twiml = connectStreamTwiml(mediaUrl, {
+        from: from ?? "",
+        to: to ?? "",
+        direction,
+      });
+      return new Response(twiml, {
+        status: 200,
+        headers: { "content-type": "text/xml" },
+      });
+    }
+
+    try {
+      const twiml = routingDecisionTwiml(decision, {
+        actionUrl: (action) => {
+          const url = new URL(request.url);
+          url.searchParams.set(CALL_SDK_ACTION_PARAM, action);
+          return url.toString();
+        },
+      });
+      return new Response(twiml, {
+        status: 200,
+        headers: { "content-type": "text/xml" },
+      });
+    } catch (err) {
+      // `routeIncomingCall` never rejects (core converts every failure into
+      // a decision) — only the translation step can throw, e.g. an
+      // `AdapterError` for a verb this adapter can't express.
+      ctx.logger.error("failed to translate routing decision to TwiML", {
+        error: String(err),
+      });
+      return new Response("Internal Server Error", { status: 500 });
+    }
   }
 
   /**
@@ -229,21 +296,21 @@ export class TwilioAdapter implements Adapter {
   }
 
   /** Places an outbound call via Twilio's REST API and connects it to the media plane. */
-  async startCall(options: StartCallOptions): Promise<{ callId: string }> {
+  async dial(options: AdapterDialOptions): Promise<{ callId: string }> {
     const from =
       options.from ??
       this.#config.phoneNumber ??
       process.env.TWILIO_PHONE_NUMBER;
     if (!from) {
       throw new AdapterError(
-        "startCall requires a 'from' number: pass options.from, set config.phoneNumber, or set TWILIO_PHONE_NUMBER",
+        "dial requires a 'from' number: pass options.from, set config.phoneNumber, or set TWILIO_PHONE_NUMBER",
         { adapterName: "twilio" }
       );
     }
     const mediaUrl = this.#config.mediaUrl;
     if (!mediaUrl) {
       throw new AdapterError(
-        "startCall requires config.mediaUrl — an outbound call has no inbound request to derive it from",
+        "dial requires config.mediaUrl — an outbound call has no inbound request to derive it from",
         { adapterName: "twilio" }
       );
     }
@@ -255,7 +322,7 @@ export class TwilioAdapter implements Adapter {
     });
     return await startTwilioCall({
       accountSid: this.#requireAccountSid(),
-      authToken: this.#requireAuthToken("startCall requires an auth token"),
+      authToken: this.#requireAuthToken("dial requires an auth token"),
       apiBaseUrl: this.#config.apiBaseUrl ?? DEFAULT_API_BASE_URL,
       to: options.to,
       from,

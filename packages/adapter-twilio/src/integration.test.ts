@@ -14,26 +14,35 @@
  * type-checking, this file is where it would surface.
  */
 
+/**
+ * biome-ignore-all lint/suspicious/noMisplacedAssertion: the routing
+ * contract's per-verb callbacks run inside the kit's `it()` blocks — Biome
+ * just can't see across the `routingContract` call boundary.
+ */
+
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+  attachVoice,
+  createEnergyVadStage,
+  createSilenceTurnStage,
+  type VoiceSession,
+} from "@call-adapter/pipeline";
+import {
   adapterContract,
   createMockSttStage,
   createMockTtsStage,
+  parseTwiml,
   recordEvents,
+  routingContract,
   startFakeTwilioCall,
 } from "@call-adapter/tests";
-import {
-  Call,
-  type CallSession,
-  createEnergyVadStage,
-  createSilenceTurnStage,
-  type MediaSocket,
-} from "call-sdk";
+import { Call, type CallSession, type MediaSocket } from "call-sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WebSocketServer } from "ws";
 import { createTwilioAdapter, type TwilioAdapter } from "./index";
+import { computeTwilioSignature } from "./signature";
 
 const AUTH_TOKEN = "test-auth-token";
 const WEBHOOK_PATH = "/twilio/voice";
@@ -68,6 +77,7 @@ async function waitForSession(
 interface Harness {
   baseUrl: string;
   call: Call;
+  voices: Map<string, VoiceSession>;
 }
 
 async function startHarness(): Promise<{
@@ -89,18 +99,29 @@ async function startHarness(): Promise<{
   const call = new Call({
     adapters: { twilio: twilioAdapter },
     logger: "silent",
-    stages: [
-      // Shrunk windows so VAD/turn detection resolve in tens of ms instead
-      // of the real-world hundreds-of-ms defaults — this is a test, not a
-      // production latency profile.
-      createEnergyVadStage({ activationFrames: 1, hangoverMs: 60 }),
-      createMockSttStage({ script: [{ final: TRANSCRIPT_TRIGGER }] }),
-      createSilenceTurnStage({ silenceMs: 60, finalGraceMs: 200 }),
-      createMockTtsStage({ msPerChar: 15, chunkMs: 20 }),
-    ],
-    onEndOfTurn: (_turn, session) => {
-      void session.say(RESPONSE_TEXT);
-    },
+  });
+  const voices = new Map<string, VoiceSession>();
+  call.onCallStarted((session) => {
+    // Attached synchronously so the buffered inbound audio replays into the
+    // stages once they finish attaching.
+    voices.set(
+      session.id,
+      attachVoice(session, {
+        logger: "silent",
+        stages: [
+          // Shrunk windows so VAD/turn detection resolve in tens of ms
+          // instead of the real-world hundreds-of-ms defaults — this is a
+          // test, not a production latency profile.
+          createEnergyVadStage({ activationFrames: 1, hangoverMs: 60 }),
+          createMockSttStage({ script: [{ final: TRANSCRIPT_TRIGGER }] }),
+          createSilenceTurnStage({ silenceMs: 60, finalGraceMs: 200 }),
+          createMockTtsStage({ msPerChar: 15, chunkMs: 20 }),
+        ],
+        onEndOfTurn: (_turn, voice) => {
+          void voice.say(RESPONSE_TEXT);
+        },
+      })
+    );
   });
 
   server.on("request", (req, res) => {
@@ -152,7 +173,7 @@ async function startHarness(): Promise<{
     await new Promise<void>((resolve) => server.close(() => resolve()));
   };
 
-  return { harness: { baseUrl, call }, stop };
+  return { harness: { baseUrl, call, voices }, stop };
 }
 
 describe("Twilio adapter mini integration", () => {
@@ -191,12 +212,16 @@ describe("Twilio adapter mini integration", () => {
     expect(fake.twimlResponse.status).toBe(200);
 
     const session = await waitForSession(harness.call, `twilio:${callSid}`);
-    const recorded = recordEvents(session.bus);
+    const voice = harness.voices.get(session.id);
+    if (!voice) {
+      throw new Error("voice pipeline was not attached");
+    }
+    const recorded = recordEvents(voice.bus);
 
     await fake.speak({ ms: 300, kind: "tone" });
     await fake.speak({ ms: 200, kind: "silence" });
 
-    // end-of-turn -> onEndOfTurn -> session.say() -> audio-out -> outbound
+    // end-of-turn -> onEndOfTurn -> voice.say() -> audio-out -> outbound
     // media frames flow back to the fake client.
     await fake.waitFor((r) => r.mediaMs > 0, 3000);
     await fake.waitFor((r) => r.marks.length > 0, 3000);
@@ -225,7 +250,11 @@ describe("Twilio adapter mini integration", () => {
       callSid,
     });
     const session = await waitForSession(harness.call, `twilio:${callSid}`);
-    const recorded = recordEvents(session.bus);
+    const voice = harness.voices.get(session.id);
+    if (!voice) {
+      throw new Error("voice pipeline was not attached");
+    }
+    const recorded = recordEvents(voice.bus);
 
     await fake.speak({ ms: 300, kind: "tone" });
     await fake.speak({ ms: 200, kind: "silence" });
@@ -350,4 +379,89 @@ describe("Twilio adapter contract", () => {
       });
     },
   });
+});
+
+describe("Twilio routing contract", () => {
+  // The third adapter duty, asserted provider-agnostically by the kit and
+  // provider-specifically here: each verb decision must come back as the
+  // exact TwiML dialect Twilio speaks.
+  const ROUTING_URL = "https://voice.example.com/twilio/voice";
+
+  function makeInboundRequest(): Request {
+    const fields = {
+      CallSid: "CArouting000000000000000000000000",
+      From: "+15550001111",
+      To: "+15550002222",
+      Direction: "inbound",
+    };
+    return new Request(ROUTING_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "X-Twilio-Signature": computeTwilioSignature(
+          AUTH_TOKEN,
+          ROUTING_URL,
+          fields
+        ),
+      },
+      body: new URLSearchParams(fields).toString(),
+    });
+  }
+
+  function verbs(body: string) {
+    return parseTwiml(body);
+  }
+
+  routingContract(
+    "twilio",
+    () =>
+      createTwilioAdapter({
+        authToken: AUTH_TOKEN,
+        mediaUrl: "wss://media.example.com/twilio/media",
+      }),
+    {
+      makeInboundRequest,
+      expectTranslated: {
+        reject: ({ body }) => {
+          expect(verbs(body)).toMatchObject([
+            { tag: "Reject", attributes: { reason: "rejected" } },
+          ]);
+        },
+        forward: ({ body }) => {
+          expect(verbs(body)).toMatchObject([
+            {
+              tag: "Dial",
+              children: [{ tag: "Number", text: "+15550001111" }],
+            },
+          ]);
+        },
+        say: ({ body }) => {
+          expect(verbs(body)).toMatchObject([{ tag: "Say", text: "hello" }]);
+        },
+        play: ({ body }) => {
+          expect(verbs(body)).toMatchObject([
+            { tag: "Play", text: "https://example.com/a.mp3" },
+          ]);
+        },
+        voicemail: ({ body }) => {
+          const [say, record] = verbs(body);
+          expect(say).toMatchObject({ tag: "Say", text: "leave a message" });
+          expect(record).toMatchObject({
+            tag: "Record",
+            attributes: expect.objectContaining({
+              maxLength: "120",
+              playBeep: "true",
+            }),
+          });
+          expect(record?.attributes.action).toContain("call_sdk_action=hangup");
+        },
+        hangup: ({ body }) => {
+          expect(verbs(body)).toMatchObject([{ tag: "Hangup" }]);
+        },
+        stream: ({ body }) => {
+          expect(body).toContain("<Connect><Stream");
+        },
+      },
+    }
+  );
 });
