@@ -9,12 +9,12 @@
 // `ctx.fail`, not a reconnect.
 
 import {
-  int16ToBytes,
   type Stage,
   type StageContext,
   StageError,
   type StageHandle,
-} from "call-sdk";
+} from "@call-adapter/pipeline";
+import { int16ToBytes } from "call-sdk";
 import type { DeepgramStageConfig } from "./types";
 
 const DEFAULT_MODEL = "nova-3";

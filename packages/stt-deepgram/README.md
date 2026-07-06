@@ -1,6 +1,6 @@
 # @call-adapter/stt-deepgram
 
-Streaming transcription stage for [Call SDK](../../README.md) backed by Deepgram — consumes normalized audio and emits interim and final transcript events, and can feed Deepgram's endpointing signal into turn detection.
+Streaming transcription stage for Call SDK's optional voice pipeline ([`@call-adapter/pipeline`](../pipeline/README.md)) backed by Deepgram — an example dependency, not part of the SDK core contract. It consumes normalized audio and emits interim and final transcript events, and can feed Deepgram's endpointing signal into turn detection.
 
 Speaks the Deepgram Listen websocket protocol directly over the platform's global `WebSocket` (Node >=22) — no `@deepgram/sdk` dependency at runtime. Authenticates via the WebSocket subprotocol handshake (`new WebSocket(url, ["token", apiKey])`).
 

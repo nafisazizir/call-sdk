@@ -27,6 +27,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@call-adapter/pipeline": "workspace:*",
     "call-sdk": "workspace:*"
   },
   "devDependencies": {

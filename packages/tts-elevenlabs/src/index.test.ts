@@ -4,13 +4,13 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
+import type { StageContext } from "@call-adapter/pipeline";
 import { stageContract } from "@call-adapter/tests";
 import {
   type AudioFrame,
   type CallEventMap,
   EventBus,
   int16ToBytes,
-  type StageContext,
 } from "call-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { createElevenLabsStage, ElevenLabsStage } from "./index";

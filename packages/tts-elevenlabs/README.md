@@ -1,6 +1,6 @@
 # @call-adapter/tts-elevenlabs
 
-Speech synthesis stage for [Call SDK](../../README.md) backed by ElevenLabs — consumes response text (`agent-say`) and produces streamed canonical PCM16/16kHz audio for the adapter to play back.
+Speech synthesis stage for Call SDK's optional voice pipeline ([`@call-adapter/pipeline`](../pipeline/README.md)) backed by ElevenLabs — an example dependency, not part of the SDK core contract. It consumes response text (`agent-say`) and produces streamed canonical PCM16/16kHz audio for the adapter to play back.
 
 Speaks ElevenLabs' HTTP streaming endpoint (`POST /v1/text-to-speech/{voiceId}/stream`) per text chunk, not the WebSocket input-streaming API, and requests the `pcm_16000` output format — the SDK's canonical sample rate, so no resampling happens downstream.
 

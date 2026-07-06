@@ -8,12 +8,12 @@
 // newer agent-say" signal are all combined via `AbortSignal.any`.
 
 import {
-  FrameChunker,
   type Stage,
   type StageContext,
   StageError,
   type StageHandle,
-} from "call-sdk";
+} from "@call-adapter/pipeline";
+import { FrameChunker } from "call-sdk";
 import type { ElevenLabsStageConfig } from "./types";
 
 const DEFAULT_MODEL_ID = "eleven_turbo_v2_5";
