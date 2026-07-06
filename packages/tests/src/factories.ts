@@ -1,6 +1,7 @@
 import {
   type Adapter,
   type AdapterContext,
+  type AdapterDialOptions,
   type AdapterSessionHandle,
   type AudioFrame,
   frameDurationMs,
@@ -9,7 +10,6 @@ import {
   type MediaSocket,
   type OutboundAudio,
   type SessionInit,
-  type StartCallOptions,
   type WebhookOptions,
 } from "call-sdk";
 
@@ -79,7 +79,7 @@ export interface CreateMockAdapterOptions {
 }
 
 /**
- * Creates a fully in-memory {@link MockAdapter}. `startCall` mints a call id but
+ * Creates a fully in-memory {@link MockAdapter}. `dial` mints a call id but
  * does NOT create a session — call {@link MockAdapter.connectCall} afterward to
  * simulate the provider dialing back and connecting media.
  */
@@ -186,12 +186,38 @@ export function createMockAdapter(
     bind: (boundCtx) => {
       ctx = boundCtx;
     },
-    webhook: (_request: Request, _options?: WebhookOptions) =>
-      Promise.resolve(new Response("ok", { status: 200 })),
+    // Exercises the adapter's third duty (call-control): parse the inbound
+    // webhook just enough to hand core a `CallSid`/`From`/`To`-shaped init,
+    // then respond with the raw `RoutingDecision` JSON so conformance tests
+    // can assert provider-agnostic verb pass-through without a real
+    // provider's dialect in the way.
+    webhook: async (request: Request, _options?: WebhookOptions) => {
+      if (!ctx) {
+        throw new Error(
+          "MockAdapter.webhook called before the adapter was bound to a Call"
+        );
+      }
+      const body = await request.text();
+      const form = new URLSearchParams(body);
+      const raw = Object.fromEntries(form.entries());
+      const callId = form.get("CallSid") ?? `mock-call-${++callCounter}`;
+      const from = form.get("From");
+      const to = form.get("To");
+      const decision = await ctx.routeIncomingCall({
+        callId,
+        ...(from === null ? {} : { from }),
+        ...(to === null ? {} : { to }),
+        raw,
+      });
+      return new Response(JSON.stringify(decision), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    },
     media: (_socket: MediaSocket) => {
       // no-op: the mock delivers media via connectCall/sendAudio instead.
     },
-    startCall: (_options: StartCallOptions) =>
+    dial: (_options: AdapterDialOptions) =>
       Promise.resolve({ callId: `mock-call-${++callCounter}` }),
     connectCall,
   };

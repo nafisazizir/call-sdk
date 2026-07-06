@@ -1,8 +1,13 @@
-import type {
-  AudioFrame,
-  CallEventMap,
-  CallEventType,
-  EventBus,
+// Importing anything from the pipeline package merges its semantic event
+// types into `CallEventMap` via declaration merging — required so
+// `ALL_CALL_EVENT_TYPES`/`recordEvents` below can see the full taxonomy.
+import { PIPELINE_EVENT_TYPES } from "@call-adapter/pipeline";
+import {
+  type AudioFrame,
+  type CallEventMap,
+  type CallEventType,
+  CORE_CALL_EVENT_TYPES,
+  type EventBus,
 } from "call-sdk";
 
 interface MatcherResult {
@@ -10,26 +15,10 @@ interface MatcherResult {
   pass: boolean;
 }
 
-/** Every event type in the Call SDK taxonomy — the full key set of `CallEventMap`. */
+/** Every event type in the Call SDK taxonomy — core transport/lifecycle plus the pipeline's semantic events. */
 export const ALL_CALL_EVENT_TYPES: readonly CallEventType[] = [
-  "agent-say",
-  "agent-generation-end",
-  "agent-speech-end",
-  "agent-speech-start",
-  "audio-frame",
-  "audio-out",
-  "call-answered",
-  "call-ended",
-  "call-started",
-  "end-of-turn",
-  "error",
-  "interruption",
-  "speech-end",
-  "speech-start",
-  "stt-endpoint",
-  "telemetry",
-  "transcript-final",
-  "transcript-interim",
+  ...CORE_CALL_EVENT_TYPES,
+  ...PIPELINE_EVENT_TYPES,
 ];
 
 /** A recorded log of everything published on a bus, queryable by event type. */

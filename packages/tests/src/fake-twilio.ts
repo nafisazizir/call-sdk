@@ -81,6 +81,64 @@ function parseTwimlParameters(twiml: string): Record<string, string> {
   return params;
 }
 
+// ---------------------------------------------------------------------------
+// TwiML parsing
+// ---------------------------------------------------------------------------
+
+/** One verb of a parsed TwiML document — a direct child of `<Response>`, or one of its own children (e.g. `Dial > Number`). */
+export interface TwimlVerb {
+  attributes: Record<string, string>;
+  children: TwimlVerb[];
+  tag: string;
+  text: string;
+}
+
+const TWIML_RESPONSE_RE = /<Response[^>]*>([\s\S]*)<\/Response>/;
+const TWIML_TAG_RE =
+  /<(\w+)((?:\s+[\w-]+="[^"]*")*)\s*(?:\/>|>([\s\S]*?)<\/\1>)/g;
+const TWIML_ATTR_RE = /([\w-]+)="([^"]*)"/g;
+
+function parseTwimlAttributes(attrString: string): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  for (const match of attrString.matchAll(TWIML_ATTR_RE)) {
+    attributes[match[1]] = unescapeXml(match[2]);
+  }
+  return attributes;
+}
+
+function parseTwimlChildren(xml: string): TwimlVerb[] {
+  const verbs: TwimlVerb[] = [];
+  for (const match of xml.matchAll(TWIML_TAG_RE)) {
+    const [, tag, attrString, inner] = match;
+    const children = inner === undefined ? [] : parseTwimlChildren(inner);
+    verbs.push({
+      tag,
+      attributes: parseTwimlAttributes(attrString),
+      text:
+        children.length > 0 || inner === undefined
+          ? ""
+          : unescapeXml(inner.trim()),
+      children,
+    });
+  }
+  return verbs;
+}
+
+/**
+ * Parses the direct children of `<Response>` in a TwiML document (self-closing
+ * or paired tags, e.g. `<Reject reason="busy"/>`, `<Say>hi</Say>`). One level
+ * of nesting is resolved too (e.g. `<Dial><Number>...</Number></Dial>`).
+ * Regex-based, matching the rest of this module's style — not a general XML
+ * parser.
+ */
+export function parseTwiml(body: string): TwimlVerb[] {
+  const match = body.match(TWIML_RESPONSE_RE);
+  if (!match) {
+    return [];
+  }
+  return parseTwimlChildren(match[1]);
+}
+
 function toneSamples(
   count: number,
   hz: number,
@@ -103,6 +161,10 @@ export interface FakeTwilioCallOptions {
   /** e.g. `"http://127.0.0.1:PORT"` — the host running the adapter's webhook + media handlers. */
   baseUrl: string;
   callSid?: string;
+  /** `Direction` form field on the inbound webhook. Defaults to `"inbound"`. */
+  direction?: string;
+  /** Extra form fields merged into the webhook body, after the defaults — set a key here to override it. */
+  extraParams?: Record<string, string>;
   from?: string;
   to?: string;
   /** Defaults to `"/twilio/voice"`. */
@@ -121,8 +183,15 @@ export interface FakeTwilioReceived {
 export interface FakeTwilioCall {
   /** Closes the media WebSocket without sending `stop` (simulates a dropped connection). */
   close(): Promise<void>;
-  /** Resolves once the media WebSocket has closed. */
+  /** Resolves once the media WebSocket has closed (already resolved for control-plane-only calls). */
   readonly closed: Promise<void>;
+  /**
+   * `true` iff the webhook response opened a media stream (`<Connect><Stream>`).
+   * `false` for a control-plane-only response (reject, forward, say, hangup,
+   * ...) — no WebSocket is ever opened, and `speak`/`sendStop`/`hangup`/`close`
+   * are no-ops.
+   */
+  readonly connected: boolean;
   /** Sends `stop`, then closes the socket (a normal hangup). */
   hangup(): Promise<void>;
   readonly received: FakeTwilioReceived;
@@ -169,8 +238,9 @@ export async function startFakeTwilioCall(
     CallSid: callSid,
     From: from,
     To: to,
-    Direction: "inbound",
+    Direction: opts.direction ?? "inbound",
     AccountSid: accountSid,
+    ...(opts.extraParams ?? {}),
   };
   const signature = computeFakeTwilioSignature(
     authToken,
@@ -226,14 +296,29 @@ export async function startFakeTwilioCall(
       close: () => Promise.resolve(),
       hangup: () => Promise.resolve(),
       closed: Promise.resolve(),
+      connected: false,
     };
   }
 
   const streamUrl = parseStreamUrl(responseBody);
   if (!streamUrl) {
-    throw new Error(
-      `FakeTwilioCall: no <Stream url="..."> found in webhook TwiML response: ${responseBody}`
-    );
+    // The webhook answered with call-control verbs (reject, forward, say,
+    // hangup, ...) rather than <Connect><Stream> — there's no media plane to
+    // enter, so mirror the non-200 stub's shape rather than throwing.
+    return {
+      streamUrl: "",
+      twimlResponse,
+      received,
+      waitFor,
+      speak: () => Promise.resolve(),
+      sendStop: () => {
+        // no-op: no media socket was ever opened
+      },
+      close: () => Promise.resolve(),
+      hangup: () => Promise.resolve(),
+      closed: Promise.resolve(),
+      connected: false,
+    };
   }
   const twimlParameters = parseTwimlParameters(responseBody);
 
@@ -406,5 +491,6 @@ export async function startFakeTwilioCall(
     close,
     hangup,
     closed,
+    connected: true,
   };
 }

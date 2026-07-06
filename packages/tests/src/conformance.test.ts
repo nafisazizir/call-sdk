@@ -1,8 +1,5 @@
-import {
-  type CallEventMap,
-  createEnergyVadStage,
-  type EventBus,
-} from "call-sdk";
+import { createEnergyVadStage } from "@call-adapter/pipeline";
+import type { CallEventMap, EventBus } from "call-sdk";
 import { silenceFrames, toneFrames } from "./audio";
 import { adapterContract, stageContract } from "./conformance";
 import { createMockAdapter } from "./factories";
