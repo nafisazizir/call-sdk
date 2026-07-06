@@ -1,8 +1,11 @@
+import {
+  type AudioFrame,
+  CANONICAL_FORMAT,
+  type CallEventMap,
+  EventBus,
+} from "call-sdk";
 import { describe, expect, it } from "vitest";
-import { type AudioFrame, CANONICAL_FORMAT } from "../audio/format.js";
-import { EventBus } from "../bus.js";
-import type { CallEventMap } from "../events.js";
-import type { StageContext } from "../types.js";
+import type { StageContext } from "../stage.js";
 import { createEnergyVadStage } from "./energy-vad.js";
 
 const FRAME_MS = CANONICAL_FORMAT.frameMs;

@@ -1,6 +1,6 @@
-import { type AudioFrame, CANONICAL_FORMAT } from "../audio/format.js";
+import { type AudioFrame, CANONICAL_FORMAT } from "call-sdk";
 import { frameRms, rmsToDbfs } from "../audio/rms.js";
-import type { Stage, StageContext, StageHandle } from "../types.js";
+import type { Stage, StageContext, StageHandle } from "../stage.js";
 
 /**
  * Configuration for the built-in energy-gate VAD stage.

@@ -1,23 +1,24 @@
-import { CallConfigError } from "./errors.js";
-import type { CallEventType } from "./events.js";
-import type { Logger } from "./logger.js";
-import type { Stage } from "./types.js";
+import {
+  CallConfigError,
+  type CallEventType,
+  CORE_CALL_EVENT_TYPES,
+  type Logger,
+} from "call-sdk";
+import type { Stage } from "./stage.js";
 
 /**
- * Events published by the core itself (the session runtime), available to
- * every stage without any producer stage being configured.
+ * Events available to every stage without any producer stage being
+ * configured: everything the core session publishes (transport/lifecycle,
+ * forwarded onto the pipeline bus) plus what the voice runtime itself
+ * publishes (`agent-say` from `say()`, the agent-speech signals, and
+ * `interruption`).
  */
-export const CORE_PRODUCED_EVENTS: readonly CallEventType[] = [
-  "audio-frame",
+export const PIPELINE_PRODUCED_EVENTS: readonly CallEventType[] = [
+  ...CORE_CALL_EVENT_TYPES,
   "agent-say",
   "agent-speech-start",
   "agent-speech-end",
   "interruption",
-  "call-started",
-  "call-answered",
-  "call-ended",
-  "error",
-  "telemetry",
 ];
 
 /** Actionable hints for the most common missing-producer mistakes. */
@@ -26,10 +27,12 @@ const MISSING_PRODUCER_HINTS: Partial<Record<CallEventType, string>> = {
     "add a transcription stage such as @call-adapter/stt-deepgram",
   "transcript-interim":
     "add a transcription stage such as @call-adapter/stt-deepgram",
-  "speech-start": "add a VAD stage such as call-sdk's createEnergyVadStage()",
-  "speech-end": "add a VAD stage such as call-sdk's createEnergyVadStage()",
+  "speech-start":
+    "add a VAD stage such as @call-adapter/pipeline's createEnergyVadStage()",
+  "speech-end":
+    "add a VAD stage such as @call-adapter/pipeline's createEnergyVadStage()",
   "end-of-turn":
-    "add a turn-detection stage such as call-sdk's createSilenceTurnStage()",
+    "add a turn-detection stage such as @call-adapter/pipeline's createSilenceTurnStage()",
   "audio-out": "add a TTS stage such as @call-adapter/tts-elevenlabs",
 };
 
@@ -57,7 +60,7 @@ export function validateStageGraph(
   options: ValidateStageGraphOptions
 ): void {
   const producers = new Map<CallEventType, string[]>();
-  for (const type of CORE_PRODUCED_EVENTS) {
+  for (const type of PIPELINE_PRODUCED_EVENTS) {
     producers.set(type, ["core"]);
   }
   for (const stage of stages) {
