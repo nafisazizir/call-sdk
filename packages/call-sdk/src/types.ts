@@ -1,8 +1,8 @@
 import type { AudioFrame } from "./audio/format.js";
-import type { EventBus } from "./bus.js";
 import { CallConfigError } from "./errors.js";
-import type { CallEndReason, CallEventMap, CallEventType } from "./events.js";
+import type { CallEndReason } from "./events.js";
 import type { Logger } from "./logger.js";
+import type { IncomingCallInit, RoutingDecision } from "./routing.js";
 
 /**
  * The contracts of the Call SDK: `Adapter` (one per telephony/voice
@@ -10,10 +10,11 @@ import type { Logger } from "./logger.js";
  * runtime interfaces that connect them to the core (`MediaSocket`,
  * `AdapterContext`, `StageContext`, ...).
  *
- * Per SPEC.md, an adapter does exactly two things: emit call lifecycle
- * events and move normalized audio bidirectionally. All semantic processing
- * (VAD, transcription, turn detection, TTS) lives in stages, above the
- * adapter.
+ * Per SPEC.md, an adapter does exactly three things: emit call lifecycle
+ * events, execute call-control instructions (translate the SDK's
+ * provider-agnostic verbs into the provider's dialect), and move normalized
+ * audio bidirectionally. All semantic processing (VAD, transcription, turn
+ * detection, TTS) lives above the adapter.
  */
 
 // ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ export interface WebhookOptions {
   backgroundTask?: (task: Promise<unknown>) => void;
 }
 
-export interface StartCallOptions {
+export interface AdapterDialOptions {
   from?: string;
   /** Provider-specific extras, passed through to the adapter. */
   metadata?: Record<string, string>;
@@ -159,87 +160,42 @@ export interface AdapterContext {
     outbound: OutboundAudio
   ): AdapterSessionHandle;
   readonly logger: Logger;
+  /**
+   * The call-control channel: the adapter calls this between parsing the
+   * provider's inbound webhook and building its response. Core runs the
+   * consumer's `onIncomingCall` handler (no handler → `stream`; handler
+   * error or timeout → `reject`, logged) and returns the decision the
+   * adapter must translate into the provider's dialect. Never rejects —
+   * core converts every failure into a decision.
+   */
+  routeIncomingCall(init: IncomingCallInit): Promise<RoutingDecision>;
 }
 
 /**
- * A telephony/voice provider adapter. Thin by design: lifecycle events and
- * normalized audio in/out, nothing else. An adapter that interprets audio is
- * a bug, not a feature (SPEC.md, Design Decisions).
+ * A telephony/voice provider adapter. Thin by design — it does exactly
+ * three things: emit call lifecycle events, execute call-control
+ * instructions (pure translation of a decision the consumer already made),
+ * and move normalized audio in and out. An adapter that interprets audio or
+ * picks a route on its own is a bug, not a feature (SPEC.md, Design
+ * Decisions).
  */
 export interface Adapter {
   /** Called once by `new Call(...)`; gives the adapter its session registrar. */
   bind(ctx: AdapterContext): void;
+  /**
+   * Place an outbound call via the provider's API. The call enters the
+   * media plane once the provider connects (v1: outbound calls always
+   * stream).
+   */
+  dial(options: AdapterDialOptions): Promise<{ callId: string }>;
   /** Media plane: the provider dialed our WebSocket; the adapter owns the wire protocol from here. */
   media(socket: MediaSocket): void;
   /** Stable name, used in session ids and as the key hint in `Call` config. */
   readonly name: string;
   /** Optional global cleanup (close pooled connections etc.). */
   shutdown?(): Promise<void>;
-  /** Place an outbound call via the provider's REST API. */
-  startCall(options: StartCallOptions): Promise<{ callId: string }>;
   /** Control plane: the provider's inbound-call webhook. Fetch-style, host-agnostic. */
   webhook(request: Request, options?: WebhookOptions): Promise<Response>;
-}
-
-// ---------------------------------------------------------------------------
-// Stage contract
-// ---------------------------------------------------------------------------
-
-/** Per-session context handed to `Stage.attach`. */
-export interface StageContext {
-  /** The session's event bus — subscribe to `consumes`, publish `emits`. */
-  readonly bus: EventBus<CallEventMap>;
-  /**
-   * Surface an upstream failure as a session-level error (never stall
-   * silently — SPEC.md, stage contract). `fatal` defaults to true: the call
-   * ends gracefully. v1 does no automatic recovery.
-   */
-  fail(error: Error, opts?: { fatal?: boolean }): void;
-  /** Child logger tagged with the stage name. */
-  readonly logger: Logger;
-  /** Record a telemetry mark attributed to this stage. */
-  mark(name: string, detail?: Record<string, unknown>): void;
-  readonly sessionId: string;
-  /** Aborted when session teardown starts — cancel in-flight upstream work on it. */
-  readonly signal: AbortSignal;
-}
-
-/** The per-session half of a stage, returned by `attach`. */
-export interface StageHandle {
-  /**
-   * Called at teardown, in reverse attach order. Closes the stage's own
-   * upstream connection. Must not throw (errors are logged, not propagated).
-   */
-  dispose(): void | Promise<void>;
-}
-
-/**
- * A pipeline stage: a named, factory-configured unit instantiated once per
- * call. The object returned by `create${Name}Stage(config)` IS the
- * configured factory; core calls `attach` for each new session, so stages
- * never share mutable state across calls.
- */
-export interface Stage {
-  /**
-   * Per-session instantiation. Opens upstream connections, subscribes to
-   * `ctx.bus`, returns the disposable per-session handle. Runs in
-   * configuration order; awaited before the session goes live.
-   */
-  attach(ctx: StageContext): StageHandle | Promise<StageHandle>;
-  /**
-   * Event types this stage requires. Validated at `new Call(...)`: every
-   * entry must be produced by core or by another configured stage.
-   */
-  readonly consumes: readonly CallEventType[];
-  /** Event types this stage publishes. */
-  readonly emits: readonly CallEventType[];
-  readonly name: string;
-  /**
-   * Event types this stage uses opportunistically when some other stage
-   * happens to produce them (e.g. turn detection consuming `stt-endpoint`).
-   * Not required by graph validation.
-   */
-  readonly optionalConsumes?: readonly CallEventType[];
 }
 
 // ---------------------------------------------------------------------------

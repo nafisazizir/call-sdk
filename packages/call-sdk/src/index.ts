@@ -1,5 +1,3 @@
-// Contracts: Adapter, Stage, MediaSocket, session ids
-
 // Audio DSP primitives
 export {
   type AudioFrame,
@@ -12,12 +10,6 @@ export {
 } from "./audio/format.js";
 export { mulawDecode, mulawEncode } from "./audio/mulaw.js";
 export { downsampleX2, upsampleX2 } from "./audio/resample.js";
-export { frameRms, rmsToDbfs } from "./audio/rms.js";
-export {
-  type ChunkSentencesOptions,
-  chunkSentences,
-  toSentenceIterable,
-} from "./audio/sentences.js";
 export {
   EventBus,
   type EventBusOptions,
@@ -28,8 +20,8 @@ export {
 export {
   Call,
   type CallConfig,
+  type DialOptions,
   type MediaHandlers,
-  resolveStages,
   type Webhooks,
 } from "./call.js";
 // Errors
@@ -38,20 +30,14 @@ export {
   AudioFormatError,
   CallConfigError,
   CallSdkError,
-  StageError,
 } from "./errors.js";
 // Event taxonomy + bus
-export type {
-  CallEndReason,
-  CallEventMap,
-  CallEventType,
-  TranscriptFinalEvent,
-} from "./events.js";
 export {
-  CORE_PRODUCED_EVENTS,
-  type ValidateStageGraphOptions,
-  validateStageGraph,
-} from "./graph.js";
+  type CallEndReason,
+  type CallEventMap,
+  type CallEventType,
+  CORE_CALL_EVENT_TYPES,
+} from "./events.js";
 // Logging
 export {
   type ChildLoggerBindings,
@@ -62,35 +48,34 @@ export {
   type Logger,
   type LogLevel,
 } from "./logger.js";
+// Call-control routing
+export {
+  type IncomingCall,
+  type IncomingCallHandler,
+  type IncomingCallInit,
+  isRoutingDecision,
+  ROUTING_DECISION_KIND,
+  type RoutingAction,
+  type RoutingDecision,
+} from "./routing.js";
 export {
   CallSession,
   type CallSessionDeps,
-  type ConversationState,
-  type SayResult,
-  type SessionHandlers,
-  type TranscriptEntry,
+  type SessionLifecycleHandlers,
 } from "./session.js";
-// Default in-core stages
-export {
-  createEnergyVadStage,
-  EnergyVadStage,
-  type EnergyVadStageConfig,
-} from "./stages/energy-vad.js";
-export {
-  createSilenceTurnStage,
-  SilenceTurnStage,
-  type SilenceTurnStageConfig,
-} from "./stages/silence-turn.js";
+// The session's raw media surface
+export type { SessionAudio } from "./session-audio.js";
 // Telemetry
 export {
   SessionTelemetry,
   type TelemetryMark,
   type TelemetrySink,
-  type TurnLatencySummary,
 } from "./telemetry.js";
+// Contracts: Adapter, MediaSocket, session ids
 export {
   type Adapter,
   type AdapterContext,
+  type AdapterDialOptions,
   type AdapterSessionHandle,
   formatSessionId,
   type MediaSocket,
@@ -100,9 +85,5 @@ export {
   type OutboundAudio,
   parseSessionId,
   type SessionInit,
-  type Stage,
-  type StageContext,
-  type StageHandle,
-  type StartCallOptions,
   type WebhookOptions,
 } from "./types.js";

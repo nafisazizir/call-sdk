@@ -51,21 +51,6 @@ export class AdapterError extends CallSdkError {
   }
 }
 
-/**
- * Thrown for pipeline-stage failures (a stage's upstream connection — a
- * Deepgram socket, an ElevenLabs stream — dropping, timing out, or failing
- * to attach/dispose). Always carries the offending stage's name.
- */
-export class StageError extends CallSdkError {
-  readonly stageName: string;
-
-  constructor(message: string, stageName: string, cause?: unknown) {
-    super(message, "STAGE_ERROR", cause);
-    this.name = "StageError";
-    this.stageName = stageName;
-  }
-}
-
 /** Thrown when audio data doesn't match the format it's declared/expected to be in. */
 export class AudioFormatError extends CallSdkError {
   constructor(message: string, cause?: unknown) {

@@ -1,24 +1,30 @@
 import { AdapterError, CallConfigError } from "./errors.js";
-import { validateStageGraph } from "./graph.js";
+import type { CallEventMap } from "./events.js";
 import {
   childLogger,
   createLogger,
   type Logger,
   type LogLevel,
 } from "./logger.js";
-import type { SessionHandlers } from "./session.js";
+import {
+  createIncomingCall,
+  defaultStreamDecision,
+  failureRejectDecision,
+  type IncomingCallHandler,
+  type IncomingCallInit,
+  isRoutingDecision,
+  type RoutingDecision,
+} from "./routing.js";
+import type { SessionLifecycleHandlers } from "./session.js";
 import { CallSession } from "./session.js";
-import { createEnergyVadStage } from "./stages/energy-vad.js";
-import { createSilenceTurnStage } from "./stages/silence-turn.js";
 import type { TelemetrySink } from "./telemetry.js";
 import type {
   Adapter,
+  AdapterDialOptions,
   AdapterSessionHandle,
   MediaSocket,
   OutboundAudio,
   SessionInit,
-  Stage,
-  StartCallOptions,
   WebhookOptions,
 } from "./types.js";
 import { formatSessionId } from "./types.js";
@@ -36,34 +42,41 @@ export type MediaHandlers<TAdapters> = {
 
 export interface CallConfig<
   TAdapters extends Record<string, Adapter> = Record<string, Adapter>,
-> extends SessionHandlers {
+> {
   /** Map of adapter name → adapter. v1 ships Twilio; the shape is plural by design. */
   adapters: TAdapters;
-  interruption?: {
-    /**
-     * Require this much sustained caller speech before an utterance is
-     * interrupted. Default 0 — the VAD's own activation debounce is the
-     * primary guard against noise-triggered barge-in.
-     */
-    minSpeechMs?: number;
-  };
   logger?: Logger | LogLevel;
-  /**
-   * Pipeline stages, in attach order. Sensible defaults are prepended
-   * automatically: an energy VAD unless a configured stage emits
-   * `speech-start`, and silence-based turn detection unless a configured
-   * stage emits `end-of-turn` (injected only when a transcription stage is
-   * present to gate on).
-   */
-  stages?: Stage[];
+  routing?: {
+    /**
+     * Deadline for the `onIncomingCall` handler. On timeout the call is
+     * rejected (logged). Default 5000 ms — providers give a webhook ~15 s,
+     * and dead air is the worst outcome for a caller.
+     */
+    handlerTimeoutMs?: number;
+  };
   telemetry?: { sink?: TelemetrySink };
 }
 
-const DEFAULT_START_CALL_TIMEOUT_MS = 30_000;
+/** Options for `Call.dial` — an outbound call on a named adapter. */
+export interface DialOptions<
+  TAdapters extends Record<string, Adapter> = Record<string, Adapter>,
+> {
+  adapter: keyof TAdapters & string;
+  from?: string;
+  /** Provider-specific extras, passed through to the adapter. */
+  metadata?: Record<string, string>;
+  /** How long to wait for the provider to connect media. Default 30 s. */
+  timeoutMs?: number;
+  to: string;
+}
+
+const DEFAULT_DIAL_TIMEOUT_MS = 30_000;
+const DEFAULT_ROUTING_HANDLER_TIMEOUT_MS = 5000;
 
 /**
- * The configured application — set up once with adapters, a pipeline, and
- * handlers; services many calls over its lifetime. Mount
+ * The configured application — constructed once with a map of adapters;
+ * behavior is registered with methods (`onIncomingCall`, `onCallStarted`,
+ * ...); services many calls over its lifetime. Mount
  * `call.webhooks.<adapter>` on your HTTP route and `call.media.<adapter>`
  * on your WebSocket route, in any host (SPEC.md, Transport & Runtime).
  */
@@ -76,22 +89,22 @@ export class Call<
   readonly media: MediaHandlers<TAdapters>;
 
   readonly #adapters: TAdapters;
-  readonly #stages: readonly Stage[];
   readonly #logger: Logger;
   readonly #config: CallConfig<TAdapters>;
   readonly #sessions = new Map<string, CallSession>();
   readonly #pendingOutbound = new Map<string, (session: CallSession) => void>();
+  readonly #lifecycle: SessionLifecycleHandlers = {
+    answered: [],
+    ended: [],
+    error: [],
+    started: [],
+  };
+  #incomingHandler?: IncomingCallHandler;
 
   constructor(config: CallConfig<TAdapters>) {
     this.#config = config;
     this.#adapters = config.adapters;
     this.#logger = createLogger(config.logger);
-    this.#stages = resolveStages(config.stages ?? []);
-    validateStageGraph(this.#stages, {
-      logger: this.#logger,
-      hasEndOfTurnHandler: Boolean(config.onEndOfTurn),
-      hasTranscriptHandler: Boolean(config.onTranscript),
-    });
 
     const webhooks = {} as Record<
       string,
@@ -103,6 +116,7 @@ export class Call<
         logger: childLogger(this.#logger, { adapter: name }),
         createSession: (init, outbound) =>
           this.#createSession(name, init, outbound),
+        routeIncomingCall: (init) => this.#routeIncomingCall(name, init),
       });
       webhooks[name] = (request, options) => adapter.webhook(request, options);
       media[name] = (socket) => adapter.media(socket);
@@ -111,7 +125,63 @@ export class Call<
     this.media = media as MediaHandlers<TAdapters>;
   }
 
-  /** Live sessions, keyed by `${adapter}:${callId}`. */
+  // ---------------------------------------------------------------------
+  // Behavior registration (methods, mirroring Chat SDK)
+  // ---------------------------------------------------------------------
+
+  /**
+   * Register the routing handler for inbound calls: it receives an
+   * `IncomingCall` and returns a decision from one of its verb methods
+   * (`reject`, `forwardTo`, `voicemail`, `stream`, ...). Exactly one may be
+   * registered; without one, every inbound call streams. A handler error
+   * or timeout rejects the call (logged, never dead air).
+   */
+  onIncomingCall(handler: IncomingCallHandler): void {
+    if (this.#incomingHandler) {
+      throw new CallConfigError(
+        "onIncomingCall is already registered — register exactly one routing handler"
+      );
+    }
+    this.#incomingHandler = handler;
+  }
+
+  /** Runs when a call's media session has started. Multiple handlers run in registration order. */
+  onCallStarted(handler: (session: CallSession) => void | Promise<void>): void {
+    this.#lifecycle.started.push(handler);
+  }
+
+  /** Runs when the provider reports the call answered / media flowing. */
+  onCallAnswered(
+    handler: (session: CallSession) => void | Promise<void>
+  ): void {
+    this.#lifecycle.answered.push(handler);
+  }
+
+  /** Runs on the exactly-once terminal `call-ended` event of every media-plane call. */
+  onCallEnded(
+    handler: (
+      event: CallEventMap["call-ended"],
+      session: CallSession
+    ) => void | Promise<void>
+  ): void {
+    this.#lifecycle.ended.push(handler);
+  }
+
+  /** Runs on session-level errors (stage failures, handler throws, provider faults). */
+  onError(
+    handler: (
+      event: CallEventMap["error"],
+      session: CallSession
+    ) => void | Promise<void>
+  ): void {
+    this.#lifecycle.error.push(handler);
+  }
+
+  // ---------------------------------------------------------------------
+  // Sessions
+  // ---------------------------------------------------------------------
+
+  /** Live sessions, keyed by `${adapter}:{callId}`. */
   get sessions(): ReadonlyMap<string, CallSession> {
     return this.#sessions;
   }
@@ -122,21 +192,24 @@ export class Call<
 
   /**
    * Places an outbound call. Resolves with the live `CallSession` once the
-   * provider dials back into the media plane (i.e. audio can actually flow),
-   * or rejects after `timeoutMs` (default 30 s).
+   * provider dials back into the media plane (i.e. audio can actually
+   * flow), or rejects after `timeoutMs` (default 30 s). Outbound calls
+   * always enter the media plane in v1.
    */
-  async startCall(
-    adapterName: keyof TAdapters & string,
-    options: StartCallOptions & { timeoutMs?: number }
-  ): Promise<CallSession> {
+  async dial(options: DialOptions<TAdapters>): Promise<CallSession> {
+    const { adapter: adapterName, timeoutMs, ...rest } = options;
     const adapter = this.#adapters[adapterName];
     if (!adapter) {
       throw new CallConfigError(
         `Unknown adapter "${adapterName}" — configured adapters: ${Object.keys(this.#adapters).join(", ")}`
       );
     }
-    const { timeoutMs, ...startOptions } = options;
-    const { callId } = await adapter.startCall(startOptions);
+    const dialOptions: AdapterDialOptions = {
+      to: rest.to,
+      ...(rest.from === undefined ? {} : { from: rest.from }),
+      ...(rest.metadata === undefined ? {} : { metadata: rest.metadata }),
+    };
+    const { callId } = await adapter.dial(dialOptions);
     const sessionId = formatSessionId(adapterName, callId);
     const existing = this.#sessions.get(sessionId);
     if (existing) {
@@ -147,10 +220,10 @@ export class Call<
         this.#pendingOutbound.delete(sessionId);
         reject(
           new AdapterError(
-            `Timed out after ${timeoutMs ?? DEFAULT_START_CALL_TIMEOUT_MS}ms waiting for the media stream of outbound call ${sessionId}`
+            `Timed out after ${timeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS}ms waiting for the media stream of outbound call ${sessionId}`
           )
         );
-      }, timeoutMs ?? DEFAULT_START_CALL_TIMEOUT_MS);
+      }, timeoutMs ?? DEFAULT_DIAL_TIMEOUT_MS);
       this.#pendingOutbound.set(sessionId, (session) => {
         clearTimeout(timer);
         resolve(session);
@@ -168,25 +241,62 @@ export class Call<
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Internals
+  // ---------------------------------------------------------------------
+
+  /**
+   * The adapter-facing routing channel. Never rejects: no handler →
+   * `stream` (preserves the pre-routing behavior); handler error, timeout,
+   * or a non-decision return → `reject`, logged at error level.
+   */
+  async #routeIncomingCall(
+    adapterName: string,
+    init: IncomingCallInit
+  ): Promise<RoutingDecision> {
+    const handler = this.#incomingHandler;
+    if (!handler) {
+      return defaultStreamDecision();
+    }
+    const incoming = createIncomingCall(adapterName, init);
+    const timeoutMs =
+      this.#config.routing?.handlerTimeoutMs ??
+      DEFAULT_ROUTING_HANDLER_TIMEOUT_MS;
+    try {
+      const result = await withTimeout(
+        Promise.resolve(handler(incoming)),
+        timeoutMs
+      );
+      if (!isRoutingDecision(result)) {
+        this.#logger.error(
+          `onIncomingCall for ${adapterName}:${init.callId} returned a value that is not a RoutingDecision — rejecting the call`
+        );
+        return failureRejectDecision();
+      }
+      return result;
+    } catch (err) {
+      this.#logger.error(
+        `onIncomingCall for ${adapterName}:${init.callId} failed — rejecting the call`,
+        { error: err instanceof Error ? err : new Error(String(err)) }
+      );
+      return failureRejectDecision();
+    }
+  }
+
   #createSession(
     adapterName: string,
     init: SessionInit,
     outbound: OutboundAudio
   ): AdapterSessionHandle {
-    const handlers: SessionHandlers = this.#config;
     const session = new CallSession({
       adapterName,
       init,
       outbound,
-      stages: this.#stages,
       logger: this.#logger,
       ...(this.#config.telemetry?.sink
         ? { telemetrySink: this.#config.telemetry.sink }
         : {}),
-      ...(this.#config.interruption
-        ? { interruption: this.#config.interruption }
-        : {}),
-      handlers,
+      lifecycle: this.#lifecycle,
       onClosed: (closed) => this.#sessions.delete(closed.id),
     });
     this.#sessions.set(session.id, session);
@@ -199,18 +309,19 @@ export class Call<
   }
 }
 
-/**
- * Prepends the default stages the SDK ships (SPEC.md: "the opinionated
- * defaults") unless the developer's own stages already cover the role.
- */
-export function resolveStages(stages: readonly Stage[]): Stage[] {
-  const userEmits = new Set(stages.flatMap((stage) => [...stage.emits]));
-  const defaults: Stage[] = [];
-  if (!userEmits.has("speech-start")) {
-    defaults.push(createEnergyVadStage());
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`onIncomingCall timed out after ${ms}ms`)),
+          ms
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
-  if (!userEmits.has("end-of-turn") && userEmits.has("transcript-final")) {
-    defaults.push(createSilenceTurnStage());
-  }
-  return [...defaults, ...stages];
 }
