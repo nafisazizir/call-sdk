@@ -4,8 +4,6 @@ export {
   adapterContract,
   type RoutingContractOptions,
   routingContract,
-  type StageContractOptions,
-  stageContract,
 } from "./conformance";
 export {
   type CreateMockAdapterOptions,
@@ -24,7 +22,6 @@ export {
   type TwimlVerb,
 } from "./fake-twilio";
 export {
-  ALL_CALL_EVENT_TYPES,
   matchers,
   type RecordedEvents,
   recordEvents,
@@ -32,8 +29,3 @@ export {
   toHaveEmitted,
   toHaveEndedOnce,
 } from "./matchers";
-export {
-  createMockSttStage,
-  createMockTtsStage,
-  type MockSttScriptEntry,
-} from "./mock-stages";

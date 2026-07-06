@@ -27,7 +27,6 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@call-adapter/pipeline": "workspace:*",
     "ws": "^8.18.0"
   },
   "peerDependencies": {

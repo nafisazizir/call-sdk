@@ -1,7 +1,3 @@
-// Importing anything from the pipeline package merges its semantic event
-// types into `CallEventMap` via declaration merging — required so
-// `ALL_CALL_EVENT_TYPES`/`recordEvents` below can see the full taxonomy.
-import { PIPELINE_EVENT_TYPES } from "@call-adapter/pipeline";
 import {
   type AudioFrame,
   type CallEventMap,
@@ -15,12 +11,6 @@ interface MatcherResult {
   pass: boolean;
 }
 
-/** Every event type in the Call SDK taxonomy — core transport/lifecycle plus the pipeline's semantic events. */
-export const ALL_CALL_EVENT_TYPES: readonly CallEventType[] = [
-  ...CORE_CALL_EVENT_TYPES,
-  ...PIPELINE_EVENT_TYPES,
-];
-
 /** A recorded log of everything published on a bus, queryable by event type. */
 export interface RecordedEvents {
   all: { type: CallEventType; payload: unknown }[];
@@ -28,12 +18,18 @@ export interface RecordedEvents {
 }
 
 /**
- * Subscribes to every {@link CallEventType} on `bus` up front and records each
- * published payload, so tests can assert on what a pipeline emitted.
+ * Subscribes to each event type in `eventTypes` on `bus` up front and records
+ * every published payload, so tests can assert on what was emitted. Defaults
+ * to the core transport/lifecycle taxonomy ({@link CORE_CALL_EVENT_TYPES});
+ * callers that need semantic events (e.g. the voice pipeline) pass an extended
+ * list — see the example's `pipeline/testing/matchers.ts`.
  */
-export function recordEvents(bus: EventBus<CallEventMap>): RecordedEvents {
+export function recordEvents(
+  bus: EventBus<CallEventMap>,
+  eventTypes: readonly CallEventType[] = CORE_CALL_EVENT_TYPES
+): RecordedEvents {
   const all: { type: CallEventType; payload: unknown }[] = [];
-  for (const type of ALL_CALL_EVENT_TYPES) {
+  for (const type of eventTypes) {
     bus.subscribe(type, (payload) => {
       all.push({ type, payload });
     });
