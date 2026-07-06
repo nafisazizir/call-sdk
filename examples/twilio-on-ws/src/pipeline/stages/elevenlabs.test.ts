@@ -4,8 +4,6 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { StageContext } from "@call-adapter/pipeline";
-import { stageContract } from "@call-adapter/tests";
 import {
   type AudioFrame,
   type CallEventMap,
@@ -13,7 +11,9 @@ import {
   int16ToBytes,
 } from "call-sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import { createElevenLabsStage, ElevenLabsStage } from "./index";
+import type { StageContext } from "../stage.js";
+import { stageContract } from "../testing/stage-contract.js";
+import { createElevenLabsStage, ElevenLabsStage } from "./elevenlabs.js";
 
 const MISSING_CREDENTIALS_MESSAGE_RE = /api key|voice/i;
 const STATUS_500_MESSAGE_RE = /500/;

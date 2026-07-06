@@ -16,9 +16,6 @@
     "llm-probe": "tsx --env-file-if-exists=.env src/llm-probe.ts"
   },
   "dependencies": {
-    "@call-adapter/pipeline": "workspace:*",
-    "@call-adapter/stt-deepgram": "workspace:*",
-    "@call-adapter/tts-elevenlabs": "workspace:*",
     "@call-adapter/twilio": "workspace:*",
     "ai": "^7.0.11",
     "call-sdk": "workspace:*",

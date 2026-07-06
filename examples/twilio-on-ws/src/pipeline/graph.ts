@@ -24,16 +24,13 @@ export const PIPELINE_PRODUCED_EVENTS: readonly CallEventType[] = [
 /** Actionable hints for the most common missing-producer mistakes. */
 const MISSING_PRODUCER_HINTS: Partial<Record<CallEventType, string>> = {
   "transcript-final":
-    "add a transcription stage such as @call-adapter/stt-deepgram",
+    "add a transcription stage such as createDeepgramStage()",
   "transcript-interim":
-    "add a transcription stage such as @call-adapter/stt-deepgram",
-  "speech-start":
-    "add a VAD stage such as @call-adapter/pipeline's createEnergyVadStage()",
-  "speech-end":
-    "add a VAD stage such as @call-adapter/pipeline's createEnergyVadStage()",
-  "end-of-turn":
-    "add a turn-detection stage such as @call-adapter/pipeline's createSilenceTurnStage()",
-  "audio-out": "add a TTS stage such as @call-adapter/tts-elevenlabs",
+    "add a transcription stage such as createDeepgramStage()",
+  "speech-start": "add a VAD stage such as createEnergyVadStage()",
+  "speech-end": "add a VAD stage such as createEnergyVadStage()",
+  "end-of-turn": "add a turn-detection stage such as createSilenceTurnStage()",
+  "audio-out": "add a TTS stage such as createElevenLabsStage()",
 };
 
 /** Events where two producers is almost certainly a misconfiguration. */

@@ -8,14 +8,34 @@
 // drops before the stage begins its own graceful shutdown is a fatal
 // `ctx.fail`, not a reconnect.
 
+import { int16ToBytes } from "call-sdk";
 import {
   type Stage,
   type StageContext,
   StageError,
   type StageHandle,
-} from "@call-adapter/pipeline";
-import { int16ToBytes } from "call-sdk";
-import type { DeepgramStageConfig } from "./types";
+} from "../stage.js";
+
+export interface DeepgramStageConfig {
+  /** Deepgram API key. Defaults to `process.env.DEEPGRAM_API_KEY`, read lazily at `attach()`. */
+  apiKey?: string;
+  /**
+   * The Deepgram Listen websocket endpoint.
+   * Default `"wss://api.deepgram.com/v1/listen"`. Overridable for tests
+   * (point at a fake local server).
+   */
+  baseUrl?: string;
+  /** Endpointing sensitivity (ms of silence), sent as `&endpointing=`. Default 300. */
+  endpointingMs?: number;
+  /** Transcription language. Default `"en"`. */
+  language?: string;
+  /** Deepgram model. Default `"nova-3"`. */
+  model?: string;
+  /** Deepgram's `smart_format` post-processing. Default true. */
+  smartFormat?: boolean;
+  /** `UtteranceEnd` delay (ms), sent as `&utterance_end_ms=`. Default 1000. */
+  utteranceEndMs?: number;
+}
 
 const DEFAULT_MODEL = "nova-3";
 const DEFAULT_LANGUAGE = "en";
@@ -315,5 +335,3 @@ export function createDeepgramStage(
 ): DeepgramStage {
   return new DeepgramStage(config);
 }
-
-export type { DeepgramStageConfig } from "./types";

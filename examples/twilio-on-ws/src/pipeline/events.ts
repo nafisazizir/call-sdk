@@ -3,9 +3,9 @@ import type { AudioFrame, CallEventType } from "call-sdk";
 /**
  * The pipeline's semantic event taxonomy, merged into the core
  * `CallEventMap` by TypeScript declaration merging. Core's map carries only
- * transport/lifecycle events; importing anything from
- * `@call-adapter/pipeline` brings these keys into `CallEventMap` (and thus
- * `CallEventType`) transitively for the whole compilation.
+ * transport/lifecycle events; importing anything from this pipeline module
+ * brings these keys into `CallEventMap` (and thus `CallEventType`)
+ * transitively for the whole compilation.
  *
  * Naming rules (same as core): kebab-case; streams are nouns
  * (`audio-out`); signals are `x-start`/`x-end` pairs; facts are past-tense;

@@ -31,7 +31,7 @@ call.onCallStarted((session) => {
 });
 ```
 
-Mount `call.webhooks.twilio` on your HTTP route and `call.media.twilio` on your WebSocket route (see [`src/app.ts`](src/app.ts) for the ~30 lines of `node:http` + `ws` glue) and you have a working phone agent. `@call-adapter/pipeline`'s `attachVoice` supplies the VAD and turn-detection stages by default; Deepgram (STT), ElevenLabs (TTS), and the LLM (GPT-5 nano via the AI SDK + Vercel AI Gateway) are swappable at the edges — see [`src/agent.ts`](src/agent.ts) for the LLM call.
+Mount `call.webhooks.twilio` on your HTTP route and `call.media.twilio` on your WebSocket route (see [`src/app.ts`](src/app.ts) for the ~30 lines of `node:http` + `ws` glue) and you have a working phone agent. The voice pipeline lives in [`src/pipeline`](src/pipeline) as plain source (see [The voice pipeline](#the-voice-pipeline) below); its `attachVoice` supplies the VAD and turn-detection stages by default; Deepgram (STT), ElevenLabs (TTS), and the LLM (GPT-5 nano via the AI SDK + Vercel AI Gateway) are swappable at the edges — see [`src/agent.ts`](src/agent.ts) for the LLM call.
 
 ## Environment variables
 
@@ -117,6 +117,19 @@ On this machine, the mock pipeline's happy-path turn measured `responseLatencyMs
 
 The control plane (`/twilio/voice`) is ordinary request/response HTTP and runs anywhere, including serverless. The media plane (`/twilio/media`) is a WebSocket held open for the entire call — a long-lived, low-latency connection that serverless platforms are a poor structural fit for (duration caps, cold starts, and autoscaling can all stutter or drop audio mid-call). Per SPEC.md's "Transport & Runtime": **prefer a long-running host** (a VPS, container, Railway, Fly, Render, or similar) for the media plane. Running it on serverless anyway is possible and not prevented by the SDK — just make sure it's an informed trade-off, not a default.
 
-## Note on ElevenLabs output format
+## The voice pipeline
 
-`@call-adapter/tts-elevenlabs` requests ElevenLabs' `pcm_16000` output format (matching the SDK's canonical audio format with no resampling needed). Confirm `pcm_16000` is available on your ElevenLabs account tier before relying on it in production — some lower tiers restrict PCM output formats.
+Everything a real-time voice application needs on top of the core's raw media plane lives in [`src/pipeline`](src/pipeline) — as plain example source, not an installed package. This is deliberate: STT/TTS/VAD/turn detection are a consumer's choice, not the SDK's, so they live here until the abstraction is proven across providers, at which point the pipeline graduates to its own package (`@call-adapter/pipeline` + provider stages). It builds exclusively on `call-sdk`'s public surface (`session.bus`, `session.audio`, `session.telemetry`), which is what proves that surface is sufficient.
+
+What's in the box:
+
+- **`attachVoice(session, options)` → `VoiceSession`** — `say()` (string or streaming text, sentence-chunked), `stopSpeaking()`, `transcript`, `state`, `turns` (per-turn latency), `bus`, `detach()`. Validates the stage graph synchronously (miswiring throws at attach time, not mid-call), attaches stages in the background while inbound audio is buffered, and disposes the graph (reverse attach order, provider sockets closed) before the terminal `call-ended` event.
+- **Built-in stages** — `createEnergyVadStage()` (adaptive energy-gate VAD) and `createSilenceTurnStage()` (silence-hangover turn detection), auto-injected unless your stages already cover the role.
+- **Provider stages** — `createDeepgramStage()` (STT, speaks the Deepgram Listen websocket protocol directly over the global `WebSocket`, no SDK dependency) and `createElevenLabsStage()` (TTS, ElevenLabs' HTTP streaming endpoint, `pcm_16000` output = the canonical rate, no resampling). Config defaults read from env lazily at attach; per-stage failure surfaces as a fatal session `error` (v1 does no automatic recovery).
+- **The `Stage` contract** — `create${Name}Stage(config)` factories with declared `consumes`/`emits`, validated as a graph. Keep the shape and a stage can graduate to a package unchanged. The `stageContract` conformance suite and mock STT/TTS stages live in [`src/pipeline/testing`](src/pipeline/testing).
+- **Semantic events** — `transcript-*`, `end-of-turn`, `speech-*`, `agent-say`, `interruption`, ... merged into core's `CallEventMap` by declaration merging when the pipeline is imported.
+- **Barge-in** — the pipeline detects caller speech during agent playback, publishes `interruption`, aborts TTS, and flushes the provider queue via core's `clear()` mechanism. Policy lives here; the mechanism stays in core.
+
+### Note on ElevenLabs output format
+
+`createElevenLabsStage()` requests ElevenLabs' `pcm_16000` output format (matching the SDK's canonical audio format with no resampling needed). Confirm `pcm_16000` is available on your ElevenLabs account tier before relying on it in production — some lower tiers restrict PCM output formats.

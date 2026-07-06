@@ -1,7 +1,7 @@
-import type { TranscriptEntry, VoiceSession } from "@call-adapter/pipeline";
 import { type ModelMessage, streamText } from "ai";
 import type { CallEventMap } from "call-sdk";
 import { printTurnLatency } from "./latency.js";
+import type { TranscriptEntry, VoiceSession } from "./pipeline/index.js";
 
 /**
  * Routed through the Vercel AI Gateway: a plain `provider/model` string tells

@@ -26,6 +26,17 @@ export {
   StageError,
   type StageHandle,
 } from "./stage.js";
+// Provider stages (STT / TTS) — example-local, swappable at the edges
+export {
+  createDeepgramStage,
+  DeepgramStage,
+  type DeepgramStageConfig,
+} from "./stages/deepgram.js";
+export {
+  createElevenLabsStage,
+  ElevenLabsStage,
+  type ElevenLabsStageConfig,
+} from "./stages/elevenlabs.js";
 // Built-in stages
 export {
   createEnergyVadStage,

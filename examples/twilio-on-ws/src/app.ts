@@ -1,13 +1,5 @@
 import { createServer, type IncomingMessage } from "node:http";
 import {
-  attachVoice,
-  createEnergyVadStage,
-  type Stage,
-  type VoiceSession,
-} from "@call-adapter/pipeline";
-import { createDeepgramStage } from "@call-adapter/stt-deepgram";
-import { createElevenLabsStage } from "@call-adapter/tts-elevenlabs";
-import {
   createTwilioAdapter,
   type TwilioAdapterConfig,
 } from "@call-adapter/twilio";
@@ -21,6 +13,14 @@ import {
 } from "call-sdk";
 import { WebSocketServer } from "ws";
 import { defaultAgent } from "./agent.js";
+import {
+  attachVoice,
+  createDeepgramStage,
+  createElevenLabsStage,
+  createEnergyVadStage,
+  type Stage,
+  type VoiceSession,
+} from "./pipeline/index.js";
 
 export const WEBHOOK_PATH = "/twilio/voice";
 export const MEDIA_PATH = "/twilio/media";
