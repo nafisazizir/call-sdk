@@ -1,5 +1,5 @@
-import type { TranscriptFinalEvent } from "../events.js";
-import type { Stage, StageContext, StageHandle } from "../stage.js";
+import type { TranscriptFinalEvent } from "../events";
+import type { Stage, StageContext, StageHandle } from "../stage";
 
 /**
  * Configuration for the built-in silence-based turn-detection stage.

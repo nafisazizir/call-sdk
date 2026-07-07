@@ -1,4 +1,4 @@
-import { createRouterServer, WEBHOOK_PATH } from "./app.js";
+import { createRouterServer, WEBHOOK_PATH } from "./app";
 
 const port = Number(process.env.PORT ?? 3000);
 

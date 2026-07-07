@@ -12,16 +12,16 @@ import {
   type LogLevel,
   type Unsubscribe,
 } from "call-sdk";
-import { chunkSentences } from "./audio/sentences.js";
-import { validateStageGraph } from "./graph.js";
-import type { Stage, StageContext, StageHandle } from "./stage.js";
-import { createEnergyVadStage } from "./stages/energy-vad.js";
-import { createSilenceTurnStage } from "./stages/silence-turn.js";
+import { chunkSentences } from "./audio/sentences";
+import { validateStageGraph } from "./graph";
+import type { Stage, StageContext, StageHandle } from "./stage";
+import { createEnergyVadStage } from "./stages/energy-vad";
+import { createSilenceTurnStage } from "./stages/silence-turn";
 import {
   computeTurnLatency,
   observeSemanticMarks,
   type TurnLatencySummary,
-} from "./telemetry.js";
+} from "./telemetry";
 
 export type ConversationState = "idle" | "user-speaking" | "agent-speaking";
 

@@ -1,10 +1,10 @@
 import { CallConfigError, type CallEventType, type Logger } from "call-sdk";
 import { describe, expect, it } from "vitest";
-import { validateStageGraph } from "./graph.js";
-import type { Stage } from "./stage.js";
-import { createEnergyVadStage } from "./stages/energy-vad.js";
-import { createSilenceTurnStage } from "./stages/silence-turn.js";
-import { resolveStages } from "./voice-session.js";
+import { validateStageGraph } from "./graph";
+import type { Stage } from "./stage";
+import { createEnergyVadStage } from "./stages/energy-vad";
+import { createSilenceTurnStage } from "./stages/silence-turn";
+import { resolveStages } from "./voice-session";
 
 function fakeStage(
   name: string,

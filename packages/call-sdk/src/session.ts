@@ -1,15 +1,15 @@
-import type { AudioFrame } from "./audio/format.js";
-import { EventBus, type EventMeta, type Unsubscribe } from "./bus.js";
-import type { CallEndReason, CallEventMap, CallEventType } from "./events.js";
-import { childLogger, type Logger } from "./logger.js";
-import { createSessionAudio, type SessionAudio } from "./session-audio.js";
-import { SessionTelemetry, type TelemetrySink } from "./telemetry.js";
+import type { AudioFrame } from "./audio/format";
+import { EventBus, type EventMeta, type Unsubscribe } from "./bus";
+import type { CallEndReason, CallEventMap, CallEventType } from "./events";
+import { childLogger, type Logger } from "./logger";
+import { createSessionAudio, type SessionAudio } from "./session-audio";
+import { SessionTelemetry, type TelemetrySink } from "./telemetry";
 import type {
   AdapterSessionHandle,
   OutboundAudio,
   SessionInit,
-} from "./types.js";
-import { formatSessionId } from "./types.js";
+} from "./types";
+import { formatSessionId } from "./types";
 
 /**
  * The lifecycle handler registry `Call`'s registration methods append to.

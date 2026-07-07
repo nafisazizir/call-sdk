@@ -22,8 +22,8 @@ import {
   type StageContext,
   type VoiceOptions,
   type VoiceSession,
-} from "./index.js";
-import { type RecordedEvents, recordEvents } from "./testing/matchers.js";
+} from "./index";
+import { type RecordedEvents, recordEvents } from "./testing/matchers";
 
 interface BuildOptions {
   onEndOfTurn?: VoiceOptions["onEndOfTurn"];

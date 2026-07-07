@@ -1,5 +1,5 @@
 import { type AudioFrame, CANONICAL_FORMAT } from "call-sdk";
-import type { Stage, StageContext, StageHandle } from "../stage.js";
+import type { Stage, StageContext, StageHandle } from "../stage";
 
 const FRAME_MS = CANONICAL_FORMAT.frameMs;
 const SAMPLES_PER_FRAME = CANONICAL_FORMAT.samplesPerFrame;

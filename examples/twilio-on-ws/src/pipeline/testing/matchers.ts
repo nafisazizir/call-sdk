@@ -13,7 +13,7 @@ import {
   CORE_CALL_EVENT_TYPES,
   type EventBus,
 } from "call-sdk";
-import { PIPELINE_EVENT_TYPES } from "../events.js";
+import { PIPELINE_EVENT_TYPES } from "../events";
 
 /** Every event type in the taxonomy — core transport/lifecycle plus the pipeline's semantic events. */
 export const ALL_CALL_EVENT_TYPES: readonly CallEventType[] = [

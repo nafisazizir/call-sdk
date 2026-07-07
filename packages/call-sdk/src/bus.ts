@@ -1,5 +1,5 @@
-import type { CallEventMap } from "./events.js";
-import { createLogger, type Logger } from "./logger.js";
+import type { CallEventMap } from "./events";
+import { createLogger, type Logger } from "./logger";
 
 export type Unsubscribe = () => void;
 

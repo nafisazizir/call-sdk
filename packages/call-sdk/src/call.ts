@@ -1,11 +1,11 @@
-import { AdapterError, CallConfigError } from "./errors.js";
-import type { CallEventMap } from "./events.js";
+import { AdapterError, CallConfigError } from "./errors";
+import type { CallEventMap } from "./events";
 import {
   childLogger,
   createLogger,
   type Logger,
   type LogLevel,
-} from "./logger.js";
+} from "./logger";
 import {
   createIncomingCall,
   defaultStreamDecision,
@@ -14,10 +14,10 @@ import {
   type IncomingCallInit,
   isRoutingDecision,
   type RoutingDecision,
-} from "./routing.js";
-import type { SessionLifecycleHandlers } from "./session.js";
-import { CallSession } from "./session.js";
-import type { TelemetrySink } from "./telemetry.js";
+} from "./routing";
+import type { SessionLifecycleHandlers } from "./session";
+import { CallSession } from "./session";
+import type { TelemetrySink } from "./telemetry";
 import type {
   Adapter,
   AdapterDialOptions,
@@ -26,8 +26,8 @@ import type {
   OutboundAudio,
   SessionInit,
   WebhookOptions,
-} from "./types.js";
-import { formatSessionId } from "./types.js";
+} from "./types";
+import { formatSessionId } from "./types";
 
 export type Webhooks<TAdapters> = {
   [K in keyof TAdapters]: (

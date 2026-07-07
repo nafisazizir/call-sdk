@@ -22,7 +22,7 @@ import {
   createRouterServer,
   VOICEMAIL_PROMPT,
   WEBHOOK_PATH,
-} from "./app.js";
+} from "./app";
 
 const AUTH_TOKEN = "test-auth-token";
 const BLOCKED_NUMBER = "+15559990000";

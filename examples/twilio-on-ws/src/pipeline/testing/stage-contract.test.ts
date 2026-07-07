@@ -1,8 +1,8 @@
 import { silenceFrames, toneFrames } from "@call-adapter/tests";
 import type { CallEventMap, EventBus } from "call-sdk";
-import { createEnergyVadStage } from "../stages/energy-vad.js";
-import { createMockSttStage, createMockTtsStage } from "./mock-stages.js";
-import { stageContract } from "./stage-contract.js";
+import { createEnergyVadStage } from "../stages/energy-vad";
+import { createMockSttStage, createMockTtsStage } from "./mock-stages";
+import { stageContract } from "./stage-contract";
 
 stageContract("energy-vad", () => createEnergyVadStage({ hangoverMs: 100 }), {
   arrange: (bus: EventBus<CallEventMap>) => {

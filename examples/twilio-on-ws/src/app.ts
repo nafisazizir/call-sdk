@@ -12,7 +12,7 @@ import {
   type TelemetrySink,
 } from "call-sdk";
 import { WebSocketServer } from "ws";
-import { defaultAgent } from "./agent.js";
+import { defaultAgent } from "./agent";
 import {
   attachVoice,
   createDeepgramStage,
@@ -20,7 +20,7 @@ import {
   createEnergyVadStage,
   type Stage,
   type VoiceSession,
-} from "./pipeline/index.js";
+} from "./pipeline/index";
 
 export const WEBHOOK_PATH = "/twilio/voice";
 export const MEDIA_PATH = "/twilio/media";

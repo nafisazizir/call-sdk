@@ -5,8 +5,8 @@ import {
   EventBus,
 } from "call-sdk";
 import { describe, expect, it } from "vitest";
-import type { StageContext } from "../stage.js";
-import { createEnergyVadStage } from "./energy-vad.js";
+import type { StageContext } from "../stage";
+import { createEnergyVadStage } from "./energy-vad";
 
 const FRAME_MS = CANONICAL_FORMAT.frameMs;
 const SAMPLES = CANONICAL_FORMAT.samplesPerFrame;

@@ -1,8 +1,8 @@
-import type { AudioFrame } from "./audio/format.js";
-import { CallConfigError } from "./errors.js";
-import type { CallEndReason } from "./events.js";
-import type { Logger } from "./logger.js";
-import type { IncomingCallInit, RoutingDecision } from "./routing.js";
+import type { AudioFrame } from "./audio/format";
+import { CallConfigError } from "./errors";
+import type { CallEndReason } from "./events";
+import type { Logger } from "./logger";
+import type { IncomingCallInit, RoutingDecision } from "./routing";
 
 /**
  * The contracts of the Call SDK: `Adapter` (one per telephony/voice

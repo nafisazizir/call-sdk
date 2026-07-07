@@ -1,5 +1,5 @@
-import type { AudioFrame } from "./audio/format.js";
-import type { TelemetryMark } from "./telemetry.js";
+import type { AudioFrame } from "./audio/format";
+import type { TelemetryMark } from "./telemetry";
 
 /**
  * The core event taxonomy: transport and lifecycle facts only.

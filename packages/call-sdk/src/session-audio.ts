@@ -1,8 +1,8 @@
-import type { AudioFrame } from "./audio/format.js";
-import type { EventBus, Unsubscribe } from "./bus.js";
-import type { CallEventMap } from "./events.js";
-import type { Logger } from "./logger.js";
-import type { OutboundAudio } from "./types.js";
+import type { AudioFrame } from "./audio/format";
+import type { EventBus, Unsubscribe } from "./bus";
+import type { CallEventMap } from "./events";
+import type { Logger } from "./logger";
+import type { OutboundAudio } from "./types";
 
 /**
  * The session's raw media surface — the consumer-facing half of the

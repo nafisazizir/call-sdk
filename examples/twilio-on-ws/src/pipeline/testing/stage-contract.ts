@@ -4,8 +4,8 @@
 import { createMockLogger } from "@call-adapter/tests";
 import { type CallEventMap, type CallEventType, EventBus } from "call-sdk";
 import { describe, expect, it } from "vitest";
-import type { Stage, StageContext } from "../stage.js";
-import { recordEvents } from "./matchers.js";
+import type { Stage, StageContext } from "../stage";
+import { recordEvents } from "./matchers";
 
 export interface StageContractOptions {
   /** Publishes the stage's declared inputs onto the bus. */

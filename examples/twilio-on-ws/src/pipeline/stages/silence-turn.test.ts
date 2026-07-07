@@ -1,7 +1,7 @@
 import { type CallEventMap, EventBus } from "call-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StageContext, StageHandle } from "../stage.js";
-import { createSilenceTurnStage } from "./silence-turn.js";
+import type { StageContext, StageHandle } from "../stage";
+import { createSilenceTurnStage } from "./silence-turn";
 
 function ctxFor(bus: EventBus<CallEventMap>): StageContext {
   return {

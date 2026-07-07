@@ -1,6 +1,6 @@
 // Places an outbound call: pnpm start-call +614xxxxxxxx
 // Requires CALL_PUBLIC_URL (Twilio must be able to dial our media socket).
-import { createCallServer, MEDIA_PATH } from "./app.js";
+import { createCallServer, MEDIA_PATH } from "./app";
 
 const to = process.argv[2];
 if (!to) {

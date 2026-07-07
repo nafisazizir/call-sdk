@@ -11,9 +11,9 @@ import {
   int16ToBytes,
 } from "call-sdk";
 import { afterEach, describe, expect, it } from "vitest";
-import type { StageContext } from "../stage.js";
-import { stageContract } from "../testing/stage-contract.js";
-import { createElevenLabsStage, ElevenLabsStage } from "./elevenlabs.js";
+import type { StageContext } from "../stage";
+import { stageContract } from "../testing/stage-contract";
+import { createElevenLabsStage, ElevenLabsStage } from "./elevenlabs";
 
 const MISSING_CREDENTIALS_MESSAGE_RE = /api key|voice/i;
 const STATUS_500_MESSAGE_RE = /500/;

@@ -4,7 +4,7 @@ import {
   CORE_CALL_EVENT_TYPES,
   type Logger,
 } from "call-sdk";
-import type { Stage } from "./stage.js";
+import type { Stage } from "./stage";
 
 /**
  * Events available to every stage without any producer stage being

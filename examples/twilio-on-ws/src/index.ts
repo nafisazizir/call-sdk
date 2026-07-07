@@ -1,4 +1,4 @@
-import { createCallServer, MEDIA_PATH, WEBHOOK_PATH } from "./app.js";
+import { createCallServer, MEDIA_PATH, WEBHOOK_PATH } from "./app";
 
 const port = Number(process.env.PORT ?? 3000);
 // Public URL of this server (e.g. the ngrok https URL). Needed so Twilio

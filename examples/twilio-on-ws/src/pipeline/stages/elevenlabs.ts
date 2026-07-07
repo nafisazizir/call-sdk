@@ -13,7 +13,7 @@ import {
   type StageContext,
   StageError,
   type StageHandle,
-} from "../stage.js";
+} from "../stage";
 
 export interface ElevenLabsStageConfig {
   /** ElevenLabs API key. Defaults to `process.env.ELEVENLABS_API_KEY`, read lazily at `attach()`. */

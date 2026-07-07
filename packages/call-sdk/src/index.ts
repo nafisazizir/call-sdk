@@ -7,15 +7,15 @@ export {
   type FrameChunkerOptions,
   frameDurationMs,
   int16ToBytes,
-} from "./audio/format.js";
-export { mulawDecode, mulawEncode } from "./audio/mulaw.js";
-export { downsampleX2, upsampleX2 } from "./audio/resample.js";
+} from "./audio/format";
+export { mulawDecode, mulawEncode } from "./audio/mulaw";
+export { downsampleX2, upsampleX2 } from "./audio/resample";
 export {
   EventBus,
   type EventBusOptions,
   type EventMeta,
   type Unsubscribe,
-} from "./bus.js";
+} from "./bus";
 // The configured application + one call in flight
 export {
   Call,
@@ -23,21 +23,21 @@ export {
   type DialOptions,
   type MediaHandlers,
   type Webhooks,
-} from "./call.js";
+} from "./call";
 // Errors
 export {
   AdapterError,
   AudioFormatError,
   CallConfigError,
   CallSdkError,
-} from "./errors.js";
+} from "./errors";
 // Event taxonomy + bus
 export {
   type CallEndReason,
   type CallEventMap,
   type CallEventType,
   CORE_CALL_EVENT_TYPES,
-} from "./events.js";
+} from "./events";
 // Logging
 export {
   type ChildLoggerBindings,
@@ -47,7 +47,7 @@ export {
   type LogFields,
   type Logger,
   type LogLevel,
-} from "./logger.js";
+} from "./logger";
 // Call-control routing
 export {
   type IncomingCall,
@@ -57,20 +57,20 @@ export {
   ROUTING_DECISION_KIND,
   type RoutingAction,
   type RoutingDecision,
-} from "./routing.js";
+} from "./routing";
 export {
   CallSession,
   type CallSessionDeps,
   type SessionLifecycleHandlers,
-} from "./session.js";
+} from "./session";
 // The session's raw media surface
-export type { SessionAudio } from "./session-audio.js";
+export type { SessionAudio } from "./session-audio";
 // Telemetry
 export {
   SessionTelemetry,
   type TelemetryMark,
   type TelemetrySink,
-} from "./telemetry.js";
+} from "./telemetry";
 // Contracts: Adapter, MediaSocket, session ids
 export {
   type Adapter,
@@ -86,4 +86,4 @@ export {
   parseSessionId,
   type SessionInit,
   type WebhookOptions,
-} from "./types.js";
+} from "./types";

@@ -1,6 +1,6 @@
-import type { EventBus, Unsubscribe } from "./bus.js";
-import type { CallEventMap } from "./events.js";
-import { createLogger, type Logger } from "./logger.js";
+import type { EventBus, Unsubscribe } from "./bus";
+import type { CallEventMap } from "./events";
+import { createLogger, type Logger } from "./logger";
 
 export interface TelemetryMark {
   at: number;

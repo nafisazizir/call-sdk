@@ -2,9 +2,9 @@ import type { AddressInfo } from "node:net";
 import { type CallEventMap, EventBus } from "call-sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { WebSocketServer, type WebSocket as WsSocket } from "ws";
-import type { StageContext, StageHandle } from "../stage.js";
-import { stageContract } from "../testing/stage-contract.js";
-import { createDeepgramStage, DeepgramStage } from "./deepgram.js";
+import type { StageContext, StageHandle } from "../stage";
+import { stageContract } from "../testing/stage-contract";
+import { createDeepgramStage, DeepgramStage } from "./deepgram";
 
 const API_KEY_MESSAGE_RE = /API key/i;
 const CONNECTION_LOST_MESSAGE_RE = /connection lost/i;

@@ -1,5 +1,5 @@
 import type { TelemetryMark } from "call-sdk";
-import type { TurnLatencySummary, VoiceSession } from "./pipeline/index.js";
+import type { TurnLatencySummary, VoiceSession } from "./pipeline/index";
 
 /**
  * Per-turn latency waterfall. Turns "the call feels slow" into a labeled

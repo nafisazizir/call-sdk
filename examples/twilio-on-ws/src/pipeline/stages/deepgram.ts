@@ -14,7 +14,7 @@ import {
   type StageContext,
   StageError,
   type StageHandle,
-} from "../stage.js";
+} from "../stage";
 
 export interface DeepgramStageConfig {
   /** Deepgram API key. Defaults to `process.env.DEEPGRAM_API_KEY`, read lazily at `attach()`. */

@@ -24,7 +24,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { startFakeTwilioCall } from "@call-adapter/tests";
 import type { Call, CallEventMap, CallSession, TelemetryMark } from "call-sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createCallServer, MEDIA_PATH, WEBHOOK_PATH } from "./app.js";
+import { createCallServer, MEDIA_PATH, WEBHOOK_PATH } from "./app";
 import {
   createEnergyVadStage,
   createMockSttStage,
@@ -32,8 +32,8 @@ import {
   createSilenceTurnStage,
   type SayResult,
   type VoiceSession,
-} from "./pipeline/index.js";
-import { recordEvents } from "./pipeline/testing/matchers.js";
+} from "./pipeline/index";
+import { recordEvents } from "./pipeline/testing/matchers";
 
 const AUTH_TOKEN = "test-auth-token";
 
