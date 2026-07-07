@@ -126,7 +126,7 @@ export class Call<
   }
 
   // ---------------------------------------------------------------------
-  // Behavior registration (methods, mirroring Chat SDK)
+  // Behavior registration (methods)
   // ---------------------------------------------------------------------
 
   /**

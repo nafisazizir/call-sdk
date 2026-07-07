@@ -1,13 +1,11 @@
 /**
  * Logger types and implementations for call-sdk.
  *
- * Mirrors chat-sdk's `Logger`/`ConsoleLogger` shape (see
- * `../chat/packages/chat/src/logger.ts`), adapted for call-sdk's need to
- * attach structured context (`stage`, `sessionId`) to every log line coming
- * out of a pipeline stage or session — hence structured `fields` on every
- * call instead of chat-sdk's `...args: unknown[]`, and a standalone
- * `childLogger()` helper (rather than a `.child()` method) that works over
- * any `Logger` implementation, not just `ConsoleLogger`.
+ * Designed around call-sdk's need to attach structured context (`stage`,
+ * `sessionId`) to every log line coming out of a pipeline stage or session —
+ * hence structured `fields` on every call, and a standalone `childLogger()`
+ * helper (rather than a `.child()` method) that works over any `Logger`
+ * implementation, not just `ConsoleLogger`.
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";

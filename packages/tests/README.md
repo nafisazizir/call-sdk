@@ -1,6 +1,6 @@
 # @call-adapter/tests
 
-Shared Vitest factories, matchers, and conformance suites for testing [Call SDK](../../README.md) adapters against one common contract, mirroring `@chat-adapter/tests`. This is the toolkit to reach for when building a new `@call-adapter/*` adapter, or testing an agent built on `call-sdk`. It depends only on `call-sdk` — the voice pipeline and its `stageContract` live with the example that owns them (`examples/twilio-on-ws/src/pipeline`).
+Shared Vitest factories, matchers, and conformance suites for testing [Call SDK](../../README.md) adapters against one common contract. This is the toolkit to reach for when building a new `@call-adapter/*` adapter, or testing an agent built on `call-sdk`. It depends only on `call-sdk` — the voice pipeline and its `stageContract` live with the example that owns them (`examples/twilio-on-ws/src/pipeline`).
 
 Not yet published — see the [root README's Status section](../../README.md#status) for workspace usage. Once published:
 

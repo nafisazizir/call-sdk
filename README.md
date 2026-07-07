@@ -2,7 +2,7 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-000?style=flat-square&logo=opensourceinitiative&logoColor=white&labelColor=000&color=000)](LICENSE)
 
-A provider-agnostic SDK for telephony and real-time voice. You decide what happens to a call — answer it, reject it, forward it, send it to voicemail, or take over its raw audio — and the adapter translates that decision into whatever the underlying provider speaks. Call SDK is the voice-native sibling of Vercel's [Chat SDK](https://chat-sdk.dev): where Chat SDK abstracts text chat providers behind one interface, Call SDK abstracts telephony and voice providers behind a consistent set of primitives.
+A provider-agnostic SDK for telephony and real-time voice. You decide what happens to a call — answer it, reject it, forward it, send it to voicemail, or take over its raw audio — and the adapter translates that decision into whatever the underlying provider speaks. Call SDK abstracts telephony and voice providers behind a consistent set of primitives.
 
 ```ts
 import { Call } from "call-sdk";

@@ -1,11 +1,9 @@
 /**
  * Error types for call-sdk.
  *
- * Mirrors chat-sdk's error idioms (see `../chat/packages/chat/src/errors.ts`
- * and `../chat/packages/adapter-shared/src/errors.ts`): a single base error
- * carrying a stable `code` string and an optional `cause`, with narrow
- * subclasses for each failure category rather than one error type
- * distinguished only by message text.
+ * A single base error carrying a stable `code` string and an optional
+ * `cause`, with narrow subclasses for each failure category rather than one
+ * error type distinguished only by message text.
  */
 
 /** Base error type for all call-sdk errors. */
