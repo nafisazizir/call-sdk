@@ -1,0 +1,55 @@
+{
+  "name": "@call-adapter/telnyx",
+  "version": "0.0.0",
+  "description": "Telnyx telephony adapter for Call SDK — Call Control v2 async commands and webhooks, raw audio streaming, not the managed voice-AI layer",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "call-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@call-adapter/tests": "workspace:*",
+    "@types/node": "^25.3.2",
+    "@types/ws": "^8.18.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18",
+    "ws": "^8.21.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "call",
+    "call-sdk",
+    "voice",
+    "telephony",
+    "telnyx",
+    "adapter",
+    "ai-agent",
+    "typescript"
+  ],
+  "license": "MIT"
+}
