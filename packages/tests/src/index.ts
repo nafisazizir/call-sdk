@@ -13,6 +13,22 @@ export {
   type MockCallDriver,
 } from "./factories";
 export {
+  buildSignedTelnyxWebhook,
+  createFakeTelnyxKeys,
+  decodeTelnyxClientState,
+  type FakeTelnyxApi,
+  type FakeTelnyxCall,
+  type FakeTelnyxCallOptions,
+  type FakeTelnyxKeys,
+  type FakeTelnyxReceived,
+  type RecordedCommand,
+  type StartFakeTelnyxApiOptions,
+  startFakeTelnyxApi,
+  startFakeTelnyxCall,
+  type TelnyxCodec,
+  type TelnyxWebhookEvent,
+} from "./fake-telnyx";
+export {
   computeFakeTwilioSignature,
   type FakeTwilioCall,
   type FakeTwilioCallOptions,
