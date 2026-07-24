@@ -4,11 +4,7 @@ import type { CallEndReason, CallEventMap, CallEventType } from "./events";
 import { childLogger, type Logger } from "./logger";
 import { createSessionAudio, type SessionAudio } from "./session-audio";
 import { SessionTelemetry, type TelemetrySink } from "./telemetry";
-import type {
-  AdapterSessionHandle,
-  OutboundAudio,
-  SessionInit,
-} from "./types";
+import type { AdapterSessionHandle, OutboundAudio, SessionInit } from "./types";
 import { formatSessionId } from "./types";
 
 /**
