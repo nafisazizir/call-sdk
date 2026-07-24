@@ -5,9 +5,9 @@ export default defineConfig({
     projects: [
       "packages/call-sdk",
       "packages/adapter-twilio",
-      "packages/stt-deepgram",
-      "packages/tts-elevenlabs",
+      "packages/adapter-telnyx",
       "packages/tests",
+      "examples/call-router",
       "examples/twilio-on-ws",
     ],
   },
