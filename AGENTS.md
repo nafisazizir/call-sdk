@@ -1,5 +1,7 @@
 # AGENTS.md
 
+**Nothing in this repo is published yet, and release work is deliberately deferred — see [Release policy (pre-v1)](#release-policy-pre-v1) before writing a changeset or touching packaging metadata.**
+
 Guidance for coding agents working in this repository. `CLAUDE.md` already exists at the repo root (model-selection guidance) — do not create, modify, or symlink it here.
 
 `SPEC.md` (the full design specification and rationale) exists locally in this repo but is **gitignored** — it is not checked in and will not be present in a fresh clone or on GitHub. Docs in this repo (READMEs, this file) must therefore stand alone and never link to `SPEC.md` as if it were a tracked file.
@@ -86,9 +88,20 @@ Mechanically enforced via `konsistent` (`.github/konsistent.json`) — run `pnpm
 - The examples' E2E tests (`examples/*/src/e2e.test.ts`) drive the real Twilio wire protocol through `FakeTwilioCall` with zero credentials — `call-router` asserts returned TwiML per routing branch (including the `<Record action>` continuation); `twilio-on-ws` drives the full voice loop (happy path, barge-in, exactly-once teardown, signature rejection). They are the model for testing an app wiring, not just a unit.
 - Run `pnpm validate` (the full gate) before declaring work done.
 
-## Changesets
+## Release policy (pre-v1)
 
-Behavioral changes to a publishable package (`call-sdk`, `@call-adapter/*`) need a changeset (`pnpm changeset`). Docs-only changes, test-only changes, CI config, and `examples/*` changes do not. Packages are fixed-versioned together (`.changeset/config.json`'s `fixed` group covers `call-sdk` + `@call-adapter/*` — currently `@call-adapter/twilio` and `@call-adapter/tests`), so a changeset bumping one bumps all in lockstep.
+**Nothing here has been published to npm.** Every package sits at `0.0.0`, and the first release will be a deliberate, human-initiated decision — not a side effect of ordinary work. Until that decision is made, **do not** do release or packaging housekeeping, even when it looks like an obvious tidy-up:
+
+- **No new changesets.** Do not run `pnpm changeset` or hand-write files into `.changeset/`. Pre-v1 there is no released version to describe a delta *from*, so a changeset records a diff nobody can consume — and a drawer full of stale `minor` bumps quietly decides the first version number for us (they currently sum to `0.1.0`, not `1.0.0`).
+- **No version bumps**, no `pnpm changeset version`, no `pnpm publish`, no release workflow.
+- **No npm packaging metadata** — `repository`, `homepage`, `bugs`, `author`, provenance, `.npmrc`, publish scripts. It is real work with a real correct answer; it is just not answerable until we know what the first published surface is.
+- **Do not delete the three existing changesets** in `.changeset/` (`initial-release.md`, `call-control-reframe.md`, `telnyx-adapter.md`). They are hand-written v1 release notes and migration tables, retained as source material for the eventual 1.0.0 announcement. Treat them as documentation, not as a pending version queue.
+
+Describe behavioral changes in the commit message and in the affected package's `README.md` instead. That is the pre-v1 substitute for a changeset, and it keeps the docs honest as the surface moves.
+
+The CI `changeset` job that enforced the old rule is disabled for the same reason (`.github/workflows/ci.yml`) — re-enable it as part of cutting 1.0.0, not before.
+
+**When we do decide to publish**, the release checklist is: pick the version deliberately (the fixed group in `.changeset/config.json` covers `call-sdk` + `@call-adapter/*` — currently `twilio`, `telnyx`, and `tests` — so one bump moves all of them in lockstep), add packaging metadata, add a release workflow, re-enable the CI changeset gate, and only then resume normal changeset discipline.
 
 ## Code style
 

@@ -14,9 +14,16 @@ permissions:
   contents: read
 
 jobs:
+  # DISABLED PRE-v1. Nothing in this repo is published, so there is no
+  # released version for a changeset to describe a delta from — and this gate
+  # would fail every PR that touches `packages/` under the pre-v1 release
+  # policy in AGENTS.md ("Release policy (pre-v1)").
+  #
+  # The job is kept intact rather than deleted: re-enabling it is part of
+  # cutting 1.0.0. To restore, drop the `if: false &&` prefix below.
   changeset:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: false && github.event_name == 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6.0.0
