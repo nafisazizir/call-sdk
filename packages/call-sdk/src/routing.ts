@@ -3,8 +3,7 @@
  * `call.onIncomingCall(...)`, and the `RoutingDecision` its verb methods
  * return. The consumer decides a call's fate; the adapter translates the
  * decision into the provider's dialect (TwiML, Call Control, NCCO, ...) and
- * never decides anything itself (SPEC: adapters translate, they never
- * decide).
+ * never decides anything itself: adapters translate, they never decide.
  *
  * Decisions are internally a list of actions so composed verbs — voicemail
  * is "say the prompt, then record" — translate as one provider response.

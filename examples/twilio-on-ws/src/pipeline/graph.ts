@@ -48,7 +48,7 @@ export interface ValidateStageGraphOptions {
 
 /**
  * Validates the stage graph at `new Call(...)` time so miswiring fails at
- * setup, not mid-call (SPEC.md, stage contract). Every stage's required
+ * setup, not mid-call. Every stage's required
  * `consumes` must be produced by core or by some configured stage's `emits`.
  */
 export function validateStageGraph(

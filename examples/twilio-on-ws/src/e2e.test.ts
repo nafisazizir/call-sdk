@@ -164,9 +164,8 @@ describe("examples/twilio-on-ws E2E (zero credentials)", () => {
     const voice = await getVoice(session.id);
     const recorded = recordEvents(voice.bus);
 
-    // Low-level bus tap (SPEC.md, "Two Entry Points, One Graph") — observed
-    // independently of the `recordEvents` helper used for the rest of the
-    // assertions below.
+    // Low-level bus tap — observed independently of the `recordEvents`
+    // helper used for the rest of the assertions below.
     let firstSpeechEndViaOn: CallEventMap["agent-speech-end"] | undefined;
     voice.on("agent-speech-end", (payload) => {
       firstSpeechEndViaOn ??= payload;

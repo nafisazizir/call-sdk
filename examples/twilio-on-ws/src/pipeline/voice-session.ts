@@ -243,7 +243,7 @@ class VoiceSessionImpl implements VoiceSession {
     this.#subscribeForwarding();
 
     // Dispose the stage graph during call teardown, BEFORE the terminal
-    // call-ended event (SPEC: consumer-attached media resources go first).
+    // call-ended event: consumer-attached media resources go first.
     session.registerCleanup(() => this.#disposeGraph());
 
     void this.#attach();
@@ -624,8 +624,7 @@ class VoiceSessionImpl implements VoiceSession {
   /**
    * Terminates the active utterance exactly once. `interrupted: true` also
    * aborts TTS generation and flushes the provider's outbound queue —
-   * stopping generation alone would leave already-buffered audio playing
-   * (SPEC: The Adapter Contract).
+   * stopping generation alone would leave already-buffered audio playing.
    */
   #finishUtterance(utterance: ActiveUtterance, interrupted: boolean): void {
     if (this.#active !== utterance) {

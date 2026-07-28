@@ -4,7 +4,7 @@
 
 Guidance for coding agents working in this repository. `CLAUDE.md` already exists at the repo root (model-selection guidance) — do not create, modify, or symlink it here.
 
-`SPEC.md` (the full design specification and rationale) exists locally in this repo but is **gitignored** — it is not checked in and will not be present in a fresh clone or on GitHub. Docs in this repo (READMEs, this file) must therefore stand alone and never link to `SPEC.md` as if it were a tracked file.
+`SPEC.md` (the full design specification and rationale) exists locally in this repo but is **gitignored** — it is not checked in and will not be present in a fresh clone or on GitHub. Docs in this repo (READMEs, this file) must therefore stand alone and never link to `SPEC.md` as if it were a tracked file. Checked-in source must not cite it either: doc comments ship verbatim in the published `.d.ts`, so a `SPEC.md` reference there is a dangling pointer for every consumer.
 
 ## Commands
 

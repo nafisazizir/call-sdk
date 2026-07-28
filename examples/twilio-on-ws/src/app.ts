@@ -73,7 +73,7 @@ export interface CallServerOptions {
 /**
  * The whole example, spec-scale: a `Call` with the Twilio adapter, the voice
  * pipeline attached per-call via `attachVoice`, mounted on a plain node:http
- * server + `ws` — the SDK dictates no host (SPEC.md, Transport & Runtime).
+ * server + `ws` — the SDK dictates no host.
  */
 export function createCallServer(options: CallServerOptions = {}) {
   const greeting =

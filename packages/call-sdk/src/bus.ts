@@ -33,8 +33,8 @@ function now(): number {
 
 /**
  * A small synchronous, typed pub/sub bus — the spine of the audio
- * processing pipeline (see SPEC.md, "The stage interface is event-driven,
- * not stream-transform"). Dispatch is synchronous and in subscription
+ * processing pipeline — the stage interface is event-driven, not
+ * stream-transform. Dispatch is synchronous and in subscription
  * order: this is a hot path (raw audio frames flow through it), so there
  * are no microtask hops or queuing between publish and handler execution.
  */

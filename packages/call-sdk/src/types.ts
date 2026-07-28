@@ -9,7 +9,7 @@ import type { IncomingCallInit, RoutingDecision } from "./routing";
  * provider) plus the small runtime interfaces that connect it to the core
  * (`MediaSocket`, `AdapterContext`, `OutboundAudio`, ...).
  *
- * Per SPEC.md, an adapter does exactly three things: emit call lifecycle
+ * An adapter does exactly three things: emit call lifecycle
  * events, execute call-control instructions (translate the SDK's
  * provider-agnostic verbs into the provider's dialect), and move normalized
  * audio bidirectionally. All semantic processing (VAD, transcription, turn
@@ -175,8 +175,7 @@ export interface AdapterContext {
  * three things: emit call lifecycle events, execute call-control
  * instructions (pure translation of a decision the consumer already made),
  * and move normalized audio in and out. An adapter that interprets audio or
- * picks a route on its own is a bug, not a feature (SPEC.md, Design
- * Decisions).
+ * picks a route on its own is a bug, not a feature.
  */
 export interface Adapter {
   /** Called once by `new Call(...)`; gives the adapter its session registrar. */

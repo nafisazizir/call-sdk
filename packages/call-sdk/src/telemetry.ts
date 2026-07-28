@@ -18,7 +18,7 @@ function now(): number {
 }
 
 /**
- * Per-session latency instrumentation (see SPEC.md, "Observability").
+ * Per-session latency instrumentation.
  * Records timestamped marks at every pipeline stage boundary and derives
  * per-turn latency summaries from them.
  */

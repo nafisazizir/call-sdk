@@ -78,7 +78,7 @@ const DEFAULT_ROUTING_HANDLER_TIMEOUT_MS = 5000;
  * behavior is registered with methods (`onIncomingCall`, `onCallStarted`,
  * ...); services many calls over its lifetime. Mount
  * `call.webhooks.<adapter>` on your HTTP route and `call.media.<adapter>`
- * on your WebSocket route, in any host (SPEC.md, Transport & Runtime).
+ * on your WebSocket route, in any host.
  */
 export class Call<
   TAdapters extends Record<string, Adapter> = Record<string, Adapter>,

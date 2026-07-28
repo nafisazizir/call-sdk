@@ -150,8 +150,8 @@ async function readTranslatedResponse(
 /**
  * A reusable Vitest suite asserting an {@link Adapter}'s call-control webhook
  * translates each `RoutingDecision` verb into the provider's own dialect
- * (TwiML, Call Control, NCCO, ...) — never deciding anything itself (SPEC:
- * adapters translate, they never decide). Also covers the two decisions core
+ * (TwiML, Call Control, NCCO, ...) — never deciding anything itself: adapters
+ * translate, they never decide. Also covers the two decisions core
  * makes without a routing handler: default-stream and handler-throws-reject.
  */
 export function routingContract(

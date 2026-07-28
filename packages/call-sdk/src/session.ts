@@ -139,8 +139,8 @@ export class CallSession {
 
   /**
    * Register consumer cleanup to run during teardown — after inbound audio
-   * stops, before the terminal `call-ended` event (SPEC: dispose
-   * consumer-attached media resources in reverse attach order). Functions
+   * stops, before the terminal `call-ended` event (consumer-attached media
+   * resources are disposed in reverse attach order). Functions
    * run in reverse registration order; a throwing cleanup is logged, never
    * propagated. Registering after the call has ended runs the cleanup
    * immediately.

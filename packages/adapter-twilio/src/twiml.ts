@@ -3,7 +3,7 @@
  *
  * The adapter's only outbound TwiML shape is `<Connect><Stream>`, which
  * hands the call off to a bidirectional Media Stream — the raw-audio layer
- * this adapter is built on (SPEC.md, Design Decisions). Caller metadata
+ * this adapter is built on. Caller metadata
  * (`from`/`to`/`direction`) rides along as `<Parameter>` children because
  * Twilio's `start` media message does not otherwise carry it; the adapter
  * reads it back from `start.customParameters`.
@@ -11,7 +11,7 @@
  * `routingDecisionTwiml` is the second TwiML shape: it translates a
  * provider-agnostic `RoutingDecision` (the call-control verbs a consumer's
  * `onIncomingCall` handler returns) into Twilio's dialect. This is pure
- * translation — SPEC.md: adapters translate, they never decide.
+ * translation — adapters translate, they never decide.
  */
 
 import {
@@ -151,7 +151,7 @@ function routingActionTwiml(
         { adapterName: "twilio" }
       );
     default:
-      // Loud failure per SPEC: an adapter that silently drops a verb it
+      // Loud failure: an adapter that silently drops a verb it
       // can't express is a bug, not graceful degradation.
       throw new AdapterError(
         `Twilio adapter cannot express routing action "${(action as { type: string }).type}"`,

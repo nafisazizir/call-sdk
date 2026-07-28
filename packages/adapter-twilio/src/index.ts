@@ -1,9 +1,9 @@
 /**
  * The Twilio adapter: normalizes Twilio's raw Media Streams audio to/from
  * the SDK's canonical format and emits call lifecycle events. Built on
- * Twilio's raw audio streaming layer, not its managed voice-AI product
- * (SPEC.md, Design Decisions) — this adapter contains no VAD, transcription,
- * or turn logic; it only moves bytes and facts.
+ * Twilio's raw audio streaming layer, not its managed voice-AI product —
+ * this adapter contains no VAD, transcription, or turn logic; it only moves
+ * bytes and facts.
  */
 
 import {
@@ -171,7 +171,7 @@ export class TwilioAdapter implements Adapter {
    * `connected`/`start` bring the session up, `media` frames flow bidirec-
    * tionally through the canonical format, `mark` echoes drive playback-
    * completion detection, and `stop`/close/error all end the call exactly
-   * once (SPEC.md, Failure & Teardown: a dropped media socket ends the call).
+   * once — a dropped media socket ends the call.
    */
   media(socket: MediaSocket): void {
     const ctx = this.#requireCtx();
@@ -288,8 +288,8 @@ export class TwilioAdapter implements Adapter {
 
     socket.addEventListener("error", (err) => {
       // A mere socket error races the close event and is not a semantic
-      // adapter failure — treat it the same as a dropped media socket
-      // (SPEC.md, Failure & Teardown), not `handle.fail`.
+      // adapter failure — treat it the same as a dropped media socket, not
+      // `handle.fail`.
       ctx.logger.warn("Twilio media socket error", { error: String(err) });
       endOnce("media-closed");
     });
