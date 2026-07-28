@@ -23,8 +23,7 @@ export const PIPELINE_PRODUCED_EVENTS: readonly CallEventType[] = [
 
 /** Actionable hints for the most common missing-producer mistakes. */
 const MISSING_PRODUCER_HINTS: Partial<Record<CallEventType, string>> = {
-  "transcript-final":
-    "add a transcription stage such as createDeepgramStage()",
+  "transcript-final": "add a transcription stage such as createDeepgramStage()",
   "transcript-interim":
     "add a transcription stage such as createDeepgramStage()",
   "speech-start": "add a VAD stage such as createEnergyVadStage()",
