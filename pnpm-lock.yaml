@@ -21,8 +21,8 @@ importers:
         specifier: ^5.85.0
         version: 5.88.1(@types/node@25.9.4)(typescript@5.9.3)
       konsistent:
-        specifier: 0.0.1-alpha.20
-        version: 0.0.1-alpha.20
+        specifier: 0.0.1-alpha.24
+        version: 0.0.1-alpha.24
       tsx:
         specifier: ^4.22.3
         version: 4.22.4
@@ -121,7 +121,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.18
-        version: 4.1.9(@types/node@25.9.4)(@vitest/coverage-v8@4.1.9)(vite@8.1.2(@types/node@25.9.4)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.9(@types/node@25.9.4)(@vitest/coverage-v8@4.1.9)(vite@8.1.2(@types/node@25.9.4)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -167,7 +167,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.18
-        version: 4.1.9(@types/node@25.9.4)(@vitest/coverage-v8@4.1.9)(vite@8.1.2(@types/node@25.9.4)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.9(@types/node@25.9.4)(@vitest/coverage-v8@4.1.9)(vite@8.1.2(@types/node@25.9.4)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/tests:
     dependencies:
@@ -700,8 +700,9 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@konsistent/convention@0.0.1-alpha.2':
-    resolution: {integrity: sha512-KqpIvSoF7MvvuYVlgqfhItjRoZAbXW2yvcZl+cVJh09wYzwp/nj4WNqV6uUUc+3GVp3VtdQKlUYKMuP14n6wEQ==}
+  '@konsistent/convention@0.0.1-alpha.6':
+    resolution: {integrity: sha512-dj9s085v6a97goAiUCNqJd9B/8bW4+1CzM4KhJi0S6lSKwv2XWTM8JmqrjOqvvOuu+TYTVR4RHDbXrAKSoGKjQ==}
+    engines: {node: '>=22.11.0'}
     hasBin: true
     peerDependencies:
       zod: ^4
@@ -1495,8 +1496,9 @@ packages:
       '@types/node': '>=18'
       typescript: '>=5.0.4 <7'
 
-  konsistent@0.0.1-alpha.20:
-    resolution: {integrity: sha512-JsKjtfWSg9v0QjAQDcjYlfcZ08N7MIdMHdo2ynbjWK+UVSVxavPHAIdn/FOwvIiWDSlw2hkULeMpRFulwklxig==}
+  konsistent@0.0.1-alpha.24:
+    resolution: {integrity: sha512-NEDR0k1Gyefzj1z/LXZMN1rkFtNDJKWFxDU5tKPxLEhPni1q2o8vZ1feuDTkaYHS9Ito3XMRN0Aanh0lQEJCKA==}
+    engines: {node: '>=22.11.0'}
     hasBin: true
 
   lightningcss-android-arm64@1.32.0:
@@ -2504,7 +2506,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@konsistent/convention@0.0.1-alpha.2(zod@4.4.3)':
+  '@konsistent/convention@0.0.1-alpha.6(zod@4.4.3)':
     dependencies:
       citty: 0.2.2
       jiti: 2.7.0
@@ -3181,9 +3183,9 @@ snapshots:
       yaml: 2.9.0
       zod: 4.4.3
 
-  konsistent@0.0.1-alpha.20:
+  konsistent@0.0.1-alpha.24:
     dependencies:
-      '@konsistent/convention': 0.0.1-alpha.2(zod@4.4.3)
+      '@konsistent/convention': 0.0.1-alpha.6(zod@4.4.3)
       citty: 0.2.2
       picocolors: 1.1.1
       resolve.exports: 2.0.3
