@@ -5,7 +5,7 @@
  * decisions into Call Control commands, and emits call lifecycle events.
  *
  * Built on Telnyx's raw audio streaming layer, not its managed voice-AI
- * product (SPEC.md, Design Decisions) — this adapter contains no VAD,
+ * product — this adapter contains no VAD,
  * transcription, or turn logic; it only moves bytes and facts.
  *
  * Where the Twilio adapter answers each webhook with a synchronous TwiML
@@ -79,8 +79,8 @@ interface CodecPath {
  * on the media socket's `start`. Telnyx can stream μ-law (`PCMU`) or linear
  * PCM (`L16`) at 8k or 16k; the SDK's canonical format is PCM16 @ 16kHz, so:
  * μ-law/8k and L16/8k are resampled ×2, L16/16k passes through. An
- * unrecognized format is a loud failure (SPEC: fail loudly, no silent
- * fallback) — the caller closes the socket.
+ * unrecognized format is a loud failure — no silent fallback; the caller
+ * closes the socket.
  */
 function selectCodecPath(format: TelnyxMediaFormat): CodecPath | undefined {
   const encoding = format.encoding.toUpperCase();
@@ -214,8 +214,8 @@ export class TelnyxAdapter implements Adapter {
    * connection. `connected`/`start` bring the session up (the `start`'s
    * `media_format` selects the codec path), `media` frames flow bidirection-
    * ally through the canonical format, `mark` echoes drive playback-completion
-   * detection, and `stop`/close/error all end the call exactly once (SPEC.md,
-   * Failure & Teardown: a dropped media socket ends the call).
+   * detection, and `stop`/close/error all end the call exactly once — a
+   * dropped media socket ends the call.
    */
   media(socket: MediaSocket): void {
     const ctx = this.#requireCtx();
@@ -342,8 +342,8 @@ export class TelnyxAdapter implements Adapter {
 
     socket.addEventListener("error", (err) => {
       // A mere socket error races the close event and is not a semantic
-      // adapter failure — treat it the same as a dropped media socket
-      // (SPEC.md, Failure & Teardown), not `handle.fail`.
+      // adapter failure — treat it the same as a dropped media socket, not
+      // `handle.fail`.
       ctx.logger.warn("Telnyx media socket error", { error: String(err) });
       endOnce("media-closed");
     });

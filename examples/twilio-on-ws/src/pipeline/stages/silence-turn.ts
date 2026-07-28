@@ -18,7 +18,7 @@ const DEFAULT_FINAL_GRACE_MS = 1500;
  * Silence-hangover turn detection: the caller has *finished their turn* once
  * their speech has ended AND stayed quiet for `silenceMs`. This is a distinct,
  * replaceable stage from VAD — "the audio went quiet" is not the same as "the
- * caller is done" (SPEC.md, "Turn detection is not silence detection").
+ * caller is done".
  *
  * It gates on transcripts, not raw silence: a turn is only emitted once at
  * least one `transcript-final` has accumulated. If the silence timer fires

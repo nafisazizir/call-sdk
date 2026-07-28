@@ -4,7 +4,7 @@
 // the WebSocket subprotocol handshake per Deepgram's documented pattern:
 // `new WebSocket(url, ["token", apiKey])`.
 //
-// Per SPEC.md's failure model, v1 does no automatic recovery: a socket that
+// Per the SDK's failure model, v1 does no automatic recovery: a socket that
 // drops before the stage begins its own graceful shutdown is a fatal
 // `ctx.fail`, not a reconnect.
 

@@ -2,9 +2,9 @@
  * The canonical audio format used throughout the Call SDK pipeline.
  *
  * Every adapter normalizes its provider's native audio into this format on
- * the way in, and de-normalizes on the way out — see SPEC.md, "The Adapter
- * Contract". A single canonical format is what lets one VAD / STT / turn
- * detection configuration work identically across every provider.
+ * the way in, and de-normalizes on the way out — it is the load-bearing half
+ * of the adapter contract. A single canonical format is what lets one VAD /
+ * STT / turn detection configuration work identically across every provider.
  *
  * PCM16 mono @ 16 kHz was chosen as the trade-off point for v1: it is wide
  * enough for good STT/VAD accuracy while staying cheap to resample to/from

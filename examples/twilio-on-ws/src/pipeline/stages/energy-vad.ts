@@ -41,7 +41,7 @@ type VadState = "silent" | "speaking";
  * consecutive unvoiced frames close it (`speech-end`).
  *
  * This is raw acoustic detection — "there is / isn't voice energy right now" —
- * not turn detection (see SPEC.md, "Turn detection is not silence detection").
+ * not turn detection — turn detection is not silence detection.
  */
 export class EnergyVadStage implements Stage {
   readonly name = "energy-vad";
