@@ -7,8 +7,7 @@
  *
  * Covers all three routing branches (blocklist, after-hours forward,
  * business-hours voicemail) plus the `<Record>` continuation and signature
- * rejection — mirroring the style of
- * `examples/twilio-on-ws/src/e2e.test.ts`.
+ * rejection.
  */
 
 import {

@@ -1,6 +1,6 @@
 # @call-adapter/tests
 
-Shared Vitest factories, matchers, and conformance suites for testing [Call SDK](../../README.md) adapters against one common contract. This is the toolkit to reach for when building a new `@call-adapter/*` adapter, or testing an agent built on `call-sdk`. It depends only on `call-sdk` — the voice pipeline and its `stageContract` live with the example that owns them (`examples/twilio-on-ws/src/pipeline`).
+Shared Vitest factories, matchers, and conformance suites for testing [Call SDK](../../README.md) adapters against one common contract. This is the toolkit to reach for when building a new `@call-adapter/*` adapter, or testing an agent built on `call-sdk`. It depends only on `call-sdk`.
 
 Not yet published — see the [root README's Status section](../../README.md#status) for workspace usage. Once published:
 
@@ -34,8 +34,6 @@ routingContract("my-provider", () => createMyAdapter(), {
 - **`adapterContract`** — transport/lifecycle-only: asserts session ids are well-formed and round-trippable (`${adapter.name}:${callId}`) and that handle calls (`deliverAudio`/`answered`/`mark`) are safe no-ops after teardown, with `call-ended` firing exactly once.
 - **`routingContract`** — per-verb translation conformance. Instantiate this for every adapter you build: it drives `onIncomingCall` through each verb (`reject`/`forward`/`say`/`play`/`voicemail`/`hangup`/`stream`) via a real inbound webhook request and asserts your adapter's response, plus the two decisions core makes without a handler (default-stream, handler-throws-reject). Adapters translate verbs, they never decide — this is what proves it.
 
-(The `stageContract` suite for the optional voice pipeline lives in `examples/twilio-on-ws/src/pipeline/testing`, alongside the `Stage` contract it checks.)
-
 ## Mocks and factories
 
 ```ts
@@ -44,8 +42,6 @@ import { createMockAdapter, createMockLogger } from "@call-adapter/tests";
 
 - **`createMockAdapter(name?, overrides?)`** — an `Adapter` with a working call-control webhook (parses `CallSid`/`From`/`To`, calls `routeIncomingCall`, and responds with the raw `RoutingDecision` JSON — no provider dialect in the way) plus a `connectCall()` driver (`MockCallDriver`) for simulating provider-side media session start/audio/hangup without a real socket.
 - **`createMockLogger()`** — a `Logger` that records entries (`.entries`) for assertions instead of writing to the console.
-
-Mock STT/TTS stages (`createMockSttStage`, `createMockTtsStage`) live with the voice pipeline in `examples/twilio-on-ws/src/pipeline/testing` — they exercise the `Stage` contract, which is not part of this kit's (adapter-only) surface.
 
 ## `FakeTwilioCall`
 
@@ -76,8 +72,6 @@ const [verb] = parseTwiml(fakeCall.twimlResponse.body);
 expect(verb.tag).toBe("Reject");
 expect(verb.attributes.reason).toBe("busy");
 ```
-
-See `examples/twilio-on-ws/src/e2e.test.ts` and `examples/call-router/src/e2e.test.ts` for the full patterns: a real `Call`/adapter wiring driven end-to-end through `FakeTwilioCall`, with only the STT/TTS provider edges mocked.
 
 ## `FakeTelnyxCall`
 
@@ -128,7 +122,7 @@ expect(recorded).toHaveEndedOnce(); // exactly one call-ended
 expect(frame).toBeCanonicalFrame(); // PCM16 mono @ 16kHz, correct sample count
 ```
 
-`recordEvents` subscribes to the core taxonomy (`CORE_CALL_EVENT_TYPES`) by default; pass a second argument to record an extended set — e.g. the example's pipeline testing module wraps it with the full pipeline taxonomy so `end-of-turn`/`interruption`/etc. are captured too.
+`recordEvents` subscribes to the core taxonomy (`CORE_CALL_EVENT_TYPES`) by default; pass a second argument to record an extended set.
 
 ## Audio fixtures
 

@@ -9,7 +9,7 @@ import type { TelemetryMark } from "./telemetry";
  * (speech, transcripts, turns, agent speech) belongs to the consumer's
  * pipeline: a consumer merges its event types into this map via TypeScript
  * declaration merging (`declare module "call-sdk"`), so `CallEventMap`
- * widens automatically — see `examples/twilio-on-ws/src/pipeline/events.ts`.
+ * widens automatically.
  *
  * Naming rules, so new event types stay consistent:
  *

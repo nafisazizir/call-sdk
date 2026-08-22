@@ -1,6 +1,6 @@
 # call-sdk
 
-The **thin core** of [Call SDK](../../README.md), a provider-agnostic SDK for telephony and real-time voice: `Call`, `CallSession`, the call-control verb set, the lifecycle event model, and the normalized audio boundary every adapter is built on. No STT, TTS, turn detection, or semantics — see the [root README](../../README.md) for the big-picture pitch and the flagship example [`examples/twilio-on-ws`](../../examples/twilio-on-ws) for the optional voice pipeline that adds them.
+The **thin core** of [Call SDK](../../README.md), a provider-agnostic SDK for telephony and real-time voice: `Call`, `CallSession`, the call-control verb set, the lifecycle event model, and the normalized audio boundary every adapter is built on. No STT, TTS, turn detection, or semantics — see the [root README](../../README.md) for the big-picture pitch.
 
 Not yet published — see the [root README's Status section](../../README.md#status) for workspace usage. Once published:
 
@@ -105,7 +105,7 @@ Every adapter normalizes to PCM16 mono @ 16kHz, 20ms frames (`CANONICAL_FORMAT`,
 
 ## Semantics live elsewhere
 
-`call-sdk` ships no VAD, transcription, turn detection, `say()`, transcript, or conversation state — those live in the optional voice pipeline (example source in [`examples/twilio-on-ws`](../../examples/twilio-on-ws)), built entirely on the public surface above (`session.bus`, `session.audio`, `session.telemetry`). A call router or plain recorder never needs to import it.
+`call-sdk` ships no VAD, transcription, turn detection, `say()`, transcript, or conversation state — those live in an optional consumer-layer voice pipeline, built entirely on the public surface above (`session.bus`, `session.audio`, `session.telemetry`). A call router or plain recorder never needs to import it.
 
 ## What's exported
 

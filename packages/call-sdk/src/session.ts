@@ -50,8 +50,8 @@ const MAX_PENDING_INBOUND_FRAMES = 250;
  * terminal `call-ended` event.
  *
  * Semantics (speech, turns, transcripts, `say()`) intentionally do not live
- * here — they belong to the consumer layer; see the voice pipeline in
- * `examples/twilio-on-ws/src/pipeline` (`attachVoice(session, ...)`).
+ * here — they belong to the consumer layer, built on top of `session.audio`,
+ * `session.bus`, and `session.telemetry`.
  */
 export class CallSession {
   readonly id: string;

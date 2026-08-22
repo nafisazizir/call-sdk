@@ -43,8 +43,7 @@ import { WebSocketServer } from "ws";
 const server = createServer((req, res) => {
   if (req.method === "POST" && req.url === "/telnyx/voice") {
     // adapt `req` to a WHATWG Request, call call.webhooks.telnyx(request),
-    // write the Response back — see examples/twilio-on-ws/src/app.ts for the
-    // equivalent node:http <-> Request/Response glue.
+    // write the Response back
   }
 });
 
