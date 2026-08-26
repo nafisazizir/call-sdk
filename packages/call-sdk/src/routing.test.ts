@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CallConfigError } from "./errors";
 import {
   createIncomingCall,
   defaultStreamDecision,
@@ -42,7 +43,7 @@ describe("IncomingCall verb methods", () => {
   it("forwardTo() carries the number and only the options that were set", () => {
     const incoming = createIncomingCall("twilio", INIT);
     expect(incoming.forwardTo("+15550003333").actions).toEqual([
-      { type: "forward", to: "+15550003333" },
+      { type: "forward", to: ["+15550003333"] },
     ]);
     expect(
       incoming.forwardTo("+15550003333", {
@@ -52,11 +53,27 @@ describe("IncomingCall verb methods", () => {
     ).toEqual([
       {
         type: "forward",
-        to: "+15550003333",
+        to: ["+15550003333"],
         callerId: "+15550004444",
         timeoutSeconds: 15,
       },
     ]);
+  });
+
+  it("forwardTo() accepts multiple numbers for simultaneous ring", () => {
+    const incoming = createIncomingCall("twilio", INIT);
+    expect(
+      incoming.forwardTo(["+15550003333", "+15550005555"]).actions
+    ).toEqual([{ type: "forward", to: ["+15550003333", "+15550005555"] }]);
+  });
+
+  it("forwardTo() throws on an empty or blank destination list", () => {
+    const incoming = createIncomingCall("twilio", INIT);
+    expect(() => incoming.forwardTo([])).toThrow(CallConfigError);
+    expect(() => incoming.forwardTo("")).toThrow(CallConfigError);
+    expect(() => incoming.forwardTo(["+15550003333", ""])).toThrow(
+      CallConfigError
+    );
   });
 
   it("say() and play() are single standalone actions", () => {

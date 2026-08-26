@@ -551,7 +551,18 @@ describe("Telnyx routing contract", () => {
         ) as { mode: string; q: unknown[] };
         expect(state.mode).toBe("sequence");
         expect(state.q).toMatchObject([
-          { type: "forward", to: "+15550001111" },
+          { type: "forward", to: ["+15550001111"] },
+        ]);
+      },
+      forwardMultiple: async () => {
+        const cmd = await commandFor((c) => c.command === "answer");
+        expect(cmd.body.stream_url).toBeUndefined();
+        const state = decodeTelnyxClientState(
+          cmd.body.client_state as string
+        ) as { mode: string; q: unknown[] };
+        expect(state.mode).toBe("sequence");
+        expect(state.q).toMatchObject([
+          { type: "forward", to: ["+15550001111", "+15550003333"] },
         ]);
       },
       say: async () => {
@@ -622,7 +633,8 @@ describe("Telnyx routing sequences", () => {
   });
 
   async function setup(
-    route: Parameters<Call["onIncomingCall"]>[0]
+    route: Parameters<Call["onIncomingCall"]>[0],
+    config: { connectionId?: string; phoneNumber?: string } = {}
   ): Promise<void> {
     api = await startFakeTelnyxApi({
       webhookSink: async (event: TelnyxWebhookEvent) => {
@@ -638,6 +650,7 @@ describe("Telnyx routing sequences", () => {
       apiKey: API_KEY,
       publicKey: keys.publicKey,
       mediaUrl: "wss://media.example.com/telnyx/media",
+      ...config,
     });
     call = new Call({ adapters: { telnyx: adapter }, logger: "silent" });
     call.onIncomingCall(route);
@@ -715,6 +728,76 @@ describe("Telnyx routing sequences", () => {
     expect(cmds.map(queueLength)).toEqual([3, 2, 1, 0]);
     const ids = cmds.map((c) => c.body.command_id);
     expect(new Set(ids).size).toBe(4);
+  });
+
+  it("multi-number forward: answer -> one linked dial ringing every destination, no parent hangup when a leg wins", async () => {
+    await setup(
+      (incoming) => incoming.forwardTo(["+15550003333", "+15550004444"]),
+      { connectionId: "conn-test", phoneNumber: "+15559990000" }
+    );
+    const parent = "seq-fwd-multi";
+    await deliverInitiated(parent);
+
+    // The parent's `call.answered` consequence pops the forward: one create
+    // dialing BOTH destinations, linked to the parent for bridge-on-answer.
+    const create = await api.waitForCommand((c) => c.command === "create");
+    expect(create.body.to).toEqual(["+15550003333", "+15550004444"]);
+    expect(create.body.link_to).toBe(parent);
+    expect(create.body.bridge_intent).toBe(true);
+    expect(create.body.bridge_on_answer).toBe(true);
+    expect(create.body.from).toBe("+15559990000");
+    expect(create.body.connection_id).toBe("conn-test");
+    const legState = decodeTelnyxClientState(
+      create.body.client_state as string
+    ) as { mode: string; parent: string };
+    expect(legState.mode).toBe("forward-leg");
+    expect(legState.parent).toBe(parent);
+
+    // A leg answers (Telnyx bridges it itself), a sibling is canceled, then
+    // the bridged conversation ends normally — none of these may hang the
+    // parent up out from under the connected call.
+    for (const [eventType, cause] of [
+      ["call.answered", undefined],
+      ["call.hangup", "originator_cancel"],
+      ["call.hangup", "normal_clearing"],
+    ] as const) {
+      await call.webhooks.telnyx(
+        buildSignedTelnyxWebhook(keys, {
+          event_type: eventType,
+          payload: {
+            call_control_id: create.ccid,
+            client_state: create.body.client_state,
+            ...(cause === undefined ? {} : { hangup_cause: cause }),
+          },
+        })
+      );
+    }
+    await delay(50);
+    expect(api.commandsFor(parent).map((c) => c.command)).toEqual(["answer"]);
+  });
+
+  it("multi-number forward: a leg dying with no answer hangs the parent up (no dead air)", async () => {
+    await setup(
+      (incoming) => incoming.forwardTo(["+15550003333", "+15550004444"]),
+      { connectionId: "conn-test", phoneNumber: "+15559990000" }
+    );
+    const parent = "seq-fwd-timeout";
+    await deliverInitiated(parent);
+    const create = await api.waitForCommand((c) => c.command === "create");
+
+    await call.webhooks.telnyx(
+      buildSignedTelnyxWebhook(keys, {
+        event_type: "call.hangup",
+        payload: {
+          call_control_id: create.ccid,
+          client_state: create.body.client_state,
+          hangup_cause: "timeout",
+        },
+      })
+    );
+    await api.waitForCommand(
+      (c) => c.ccid === parent && c.command === "hangup"
+    );
   });
 
   it("a duplicate consequence webhook recomputes the identical command_id rather than appending a distinct command", async () => {

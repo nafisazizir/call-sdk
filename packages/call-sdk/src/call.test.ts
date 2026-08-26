@@ -132,7 +132,9 @@ describe("routeIncomingCall", () => {
       return incoming.forwardTo("+15550002222");
     });
     const decision = await ctx().routeIncomingCall(INIT);
-    expect(decision.actions).toEqual([{ type: "forward", to: "+15550002222" }]);
+    expect(decision.actions).toEqual([
+      { type: "forward", to: ["+15550002222"] },
+    ]);
   });
 
   it("supports async handlers", async () => {

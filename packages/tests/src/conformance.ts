@@ -109,6 +109,7 @@ export function adapterContract(
 type RoutingVerbName =
   | "reject"
   | "forward"
+  | "forwardMultiple"
   | "say"
   | "play"
   | "voicemail"
@@ -134,6 +135,8 @@ const ROUTING_VERB_INVOCATIONS: Record<
 > = {
   reject: (incoming) => incoming.reject(),
   forward: (incoming) => incoming.forwardTo("+15550001111"),
+  forwardMultiple: (incoming) =>
+    incoming.forwardTo(["+15550001111", "+15550003333"]),
   say: (incoming) => incoming.say("hello"),
   play: (incoming) => incoming.play("https://example.com/a.mp3"),
   voicemail: (incoming) => incoming.voicemail({ prompt: "leave a message" }),

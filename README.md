@@ -61,7 +61,7 @@ And **three layers**:
 | Verb | Meaning |
 | --- | --- |
 | `reject(opts?)` | Decline without answering (`{ busy: true }` signals busy). |
-| `forwardTo(number, opts?)` | Answer and connect the caller to another number. |
+| `forwardTo(number \| number[], opts?)` | Answer and connect the caller to another number. An array rings every number simultaneously; the first to answer takes the call and the rest stop ringing. |
 | `voicemail(opts?)` | Optionally play a prompt, record a message, hang up. |
 | `say(text, opts?)` / `play(url)` | One-shot provider-TTS / audio prompt, then hang up. (Control-plane `say` is not the interactive media-plane speech a voice app does over `stream()` — the distinction is deliberate.) |
 | `stream()` | Hand the call to the media plane: raw audio, a live `CallSession`. |

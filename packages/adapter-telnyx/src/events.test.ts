@@ -94,6 +94,18 @@ describe("client_state codec", () => {
     expect(decodeClientState(encodeClientState(state))).toEqual(state);
   });
 
+  it("round-trips a forward-leg state with its parent", () => {
+    const state: TelnyxCallState = {
+      v: 1,
+      mode: "forward-leg",
+      direction: "outbound",
+      parent: "v3:parent-ccid",
+      q: [],
+      step: 0,
+    };
+    expect(decodeClientState(encodeClientState(state))).toEqual(state);
+  });
+
   it("returns undefined for undefined/empty input", () => {
     expect(decodeClientState(undefined)).toBeUndefined();
     expect(decodeClientState("")).toBeUndefined();
@@ -253,14 +265,14 @@ describe("planInitialCommand", () => {
 
   it("plans a forward sequence as [forward] with NO trailing hangup", () => {
     const { plan } = planInitialCommand(
-      decision({ type: "forward", to: "+15559990000" }),
+      decision({ type: "forward", to: ["+15559990000"] }),
       opts
     );
     if (plan.kind !== "answer") {
       throw new Error("expected answer");
     }
     expect(decodeClientState(plan.clientState)?.q).toEqual([
-      { type: "forward", to: "+15559990000" },
+      { type: "forward", to: ["+15559990000"] },
     ]);
   });
 
@@ -339,10 +351,10 @@ describe("advanceSequence", () => {
     expect(s3.plan.kind).toBe("hangup");
   });
 
-  it("maps forward -> transfer with to/from/timeout", () => {
+  it("maps a single-number forward -> transfer with to/from/timeout", () => {
     const state = initialState({
       type: "forward",
-      to: "+15559990000",
+      to: ["+15559990000"],
       callerId: "+15551110000",
       timeoutSeconds: 25,
     });
@@ -353,6 +365,55 @@ describe("advanceSequence", () => {
       from: "+15551110000",
       timeoutSecs: 25,
     });
+  });
+
+  it("maps a multi-number forward -> dial linked to the inbound call, legs stamped forward-leg state", () => {
+    const state = initialState({
+      type: "forward",
+      to: ["+15559990000", "+15559991111"],
+      timeoutSeconds: 25,
+    });
+    const event: TelnyxWebhookEvent = {
+      eventType: "call.answered",
+      payload: {
+        callControlId: CCID,
+        clientState: "x",
+        connectionId: "conn-1",
+        from: "+15551110000",
+        raw: {},
+      },
+    };
+    const { plan, commandId } = advanceSequence(event, state);
+    expect(plan).toMatchObject({
+      kind: "dial",
+      targets: ["+15559990000", "+15559991111"],
+      linkTo: CCID,
+      from: "+15551110000",
+      connectionId: "conn-1",
+      timeoutSecs: 25,
+    });
+    expect(commandId).toBe(telnyxCommandId(CCID, 2));
+    if (plan.kind !== "dial") {
+      throw new Error("expected dial");
+    }
+    expect(decodeClientState(plan.clientState)).toMatchObject({
+      mode: "forward-leg",
+      parent: CCID,
+    });
+  });
+
+  it("multi-number forward prefers an explicit callerId over the inbound from", () => {
+    const state = initialState({
+      type: "forward",
+      to: ["+15559990000", "+15559991111"],
+      callerId: "+15553330000",
+    });
+    const event: TelnyxWebhookEvent = {
+      eventType: "call.answered",
+      payload: { callControlId: CCID, from: "+15551110000", raw: {} },
+    };
+    const { plan } = advanceSequence(event, state);
+    expect(plan).toMatchObject({ kind: "dial", from: "+15553330000" });
   });
 
   it("always no-ops in stream mode", () => {
@@ -396,5 +457,72 @@ describe("advanceSequence", () => {
     const b = advanceSequence(eventWith("call.answered", "x"), state);
     expect(a).toEqual(b);
     expect(a.commandId).toBe(b.commandId);
+  });
+});
+
+describe("advanceSequence: forward-leg mode", () => {
+  const PARENT = "v3:parent-ccid";
+  const legState: TelnyxCallState = {
+    v: 1,
+    mode: "forward-leg",
+    direction: "outbound",
+    parent: PARENT,
+    q: [],
+    step: 0,
+  };
+
+  function legEvent(eventType: string, hangupCause?: string) {
+    return {
+      eventType,
+      payload: {
+        callControlId: CCID,
+        raw: {},
+        ...(hangupCause === undefined ? {} : { hangupCause }),
+      },
+    };
+  }
+
+  it("no-ops on the leg's answer — Telnyx bridges it to the parent itself", () => {
+    expect(advanceSequence(legEvent("call.answered"), legState).plan).toEqual({
+      kind: "noop",
+    });
+  });
+
+  it("hangs up the parent when a leg dies without a keepalive cause (nobody answered)", () => {
+    for (const cause of ["timeout", "no_answer", undefined]) {
+      const { plan } = advanceSequence(
+        legEvent("call.hangup", cause),
+        legState
+      );
+      expect(plan).toEqual({ kind: "hangup", target: PARENT });
+    }
+  });
+
+  it("leaves the parent alone when the cause says another leg won or may still win", () => {
+    for (const cause of [
+      "originator_cancel",
+      "normal_clearing",
+      "user_busy",
+      "call_rejected",
+    ]) {
+      const { plan } = advanceSequence(
+        legEvent("call.hangup", cause),
+        legState
+      );
+      expect(plan).toEqual({ kind: "noop" });
+    }
+  });
+
+  it("no-ops when the leg state carries no parent", () => {
+    const orphan: TelnyxCallState = {
+      v: 1,
+      mode: "forward-leg",
+      direction: "outbound",
+      q: [],
+      step: 0,
+    };
+    expect(
+      advanceSequence(legEvent("call.hangup", "timeout"), orphan).plan
+    ).toEqual({ kind: "noop" });
   });
 });

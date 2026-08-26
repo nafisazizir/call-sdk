@@ -82,7 +82,7 @@ export interface RoutingDecisionTwimlContext {
 }
 
 function forwardActionTwiml(action: {
-  to: string;
+  to: readonly string[];
   callerId?: string;
   timeoutSeconds?: number;
 }): string {
@@ -94,7 +94,10 @@ function forwardActionTwiml(action: {
     action.timeoutSeconds === undefined
       ? ""
       : ` timeout="${action.timeoutSeconds}"`;
-  return `<Dial${callerIdAttr}${timeoutAttr}><Number>${escapeXmlText(action.to)}</Number></Dial>`;
+  const numbers = action.to
+    .map((number) => `<Number>${escapeXmlText(number)}</Number>`)
+    .join("");
+  return `<Dial${callerIdAttr}${timeoutAttr}>${numbers}</Dial>`;
 }
 
 function sayActionTwiml(action: {

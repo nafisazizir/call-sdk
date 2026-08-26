@@ -42,8 +42,10 @@ export interface TelnyxWebhookEvent {
     callControlId: string;
     callSessionId?: string;
     clientState?: string;
+    connectionId?: string;
     direction?: string;
     from?: string;
+    hangupCause?: string;
     raw: unknown;
     state?: string;
     to?: string;
@@ -87,8 +89,10 @@ export function parseTelnyxWebhook(
   }
   const callSessionId = optionalString(p.call_session_id);
   const clientState = optionalString(p.client_state);
+  const connectionId = optionalString(p.connection_id);
   const direction = optionalString(p.direction);
   const from = optionalString(p.from);
+  const hangupCause = optionalString(p.hangup_cause);
   const state = optionalString(p.state);
   const to = optionalString(p.to);
   return {
@@ -98,8 +102,10 @@ export function parseTelnyxWebhook(
       raw: p,
       ...(callSessionId === undefined ? {} : { callSessionId }),
       ...(clientState === undefined ? {} : { clientState }),
+      ...(connectionId === undefined ? {} : { connectionId }),
       ...(direction === undefined ? {} : { direction }),
       ...(from === undefined ? {} : { from }),
+      ...(hangupCause === undefined ? {} : { hangupCause }),
       ...(state === undefined ? {} : { state }),
       ...(to === undefined ? {} : { to }),
     },
@@ -122,10 +128,16 @@ export function parseTelnyxWebhook(
  *   `record`/`forward`) is in flight; `q` is the remaining actions, `step`
  *   the monotonically increasing position used to derive idempotent
  *   `command_id`s.
+ * - `mode: "forward-leg"` — an outbound leg dialed for a multi-destination
+ *   forward (simultaneous ring). `parent` is the inbound call it bridges to
+ *   on answer; the leg's hangup outcome decides whether the parent is hung
+ *   up (nobody answered) or left alone (another leg won).
  */
 export interface TelnyxCallState {
   direction?: "inbound" | "outbound";
-  mode: "sequence" | "stream";
+  mode: "forward-leg" | "sequence" | "stream";
+  /** For `forward-leg`: the `call_control_id` of the inbound call being forwarded. */
+  parent?: string;
   q: RoutingAction[];
   step: number;
   v: 1;
@@ -136,8 +148,10 @@ export function encodeClientState(state: TelnyxCallState): string {
   return Buffer.from(JSON.stringify(state), "utf8").toString("base64");
 }
 
-function isValidMode(value: unknown): value is "sequence" | "stream" {
-  return value === "sequence" || value === "stream";
+function isValidMode(
+  value: unknown
+): value is "forward-leg" | "sequence" | "stream" {
+  return value === "sequence" || value === "stream" || value === "forward-leg";
 }
 
 function isRoutingActionArray(value: unknown): value is RoutingAction[] {
@@ -183,6 +197,9 @@ export function decodeClientState(
   ) {
     return undefined;
   }
+  if (parsed.parent !== undefined && typeof parsed.parent !== "string") {
+    return undefined;
+  }
   return {
     v: 1,
     mode: parsed.mode,
@@ -191,6 +208,7 @@ export function decodeClientState(
     ...(parsed.direction === undefined
       ? {}
       : { direction: parsed.direction as "inbound" | "outbound" }),
+    ...(parsed.parent === undefined ? {} : { parent: parsed.parent }),
   };
 }
 
@@ -206,7 +224,7 @@ export function decodeClientState(
  */
 export type CommandPlan =
   | { cause: "CALL_REJECTED" | "USER_BUSY"; kind: "reject" }
-  | { clientState?: string; kind: "hangup" }
+  | { clientState?: string; kind: "hangup"; target?: string }
   | { clientState: string; kind: "answer"; stream?: { streamUrl: string } }
   | {
       clientState: string;
@@ -214,6 +232,17 @@ export type CommandPlan =
       kind: "transfer";
       timeoutSecs?: number;
       to: string;
+    }
+  | {
+      /** `client_state` stamped on every dialed leg (`forward-leg` mode). */
+      clientState: string;
+      connectionId?: string;
+      from?: string;
+      kind: "dial";
+      /** The inbound call the answering leg bridges to (`link_to`). */
+      linkTo: string;
+      targets: readonly string[];
+      timeoutSecs?: number;
     }
   | {
       clientState: string;
@@ -251,9 +280,59 @@ export function telnyxCommandId(callControlId: string, step: number): string {
   return `call-sdk-${callControlId}-${step}`;
 }
 
+/** The facts a forward translation needs from the webhook that triggered it. */
+interface TranslateContext {
+  callControlId: string;
+  connectionId?: string;
+  from?: string;
+}
+
+function forwardPlan(
+  action: Extract<RoutingAction, { type: "forward" }>,
+  clientState: string,
+  ctx: TranslateContext
+): CommandPlan {
+  const timeout =
+    action.timeoutSeconds === undefined
+      ? {}
+      : { timeoutSecs: action.timeoutSeconds };
+  if (action.to.length === 1) {
+    return {
+      kind: "transfer",
+      to: action.to[0],
+      ...(action.callerId === undefined ? {} : { from: action.callerId }),
+      ...timeout,
+      clientState,
+    };
+  }
+  // Simultaneous ring: one dial with every destination in `to`. Telnyx rings
+  // them all at once, bridges the first to answer to the inbound call
+  // (`link_to` + bridge-on-answer), and cancels the rest.
+  const from = action.callerId ?? ctx.from;
+  return {
+    kind: "dial",
+    targets: action.to,
+    linkTo: ctx.callControlId,
+    clientState: encodeClientState({
+      v: 1,
+      mode: "forward-leg",
+      direction: "outbound",
+      parent: ctx.callControlId,
+      q: [],
+      step: 0,
+    }),
+    ...(from === undefined ? {} : { from }),
+    ...(ctx.connectionId === undefined
+      ? {}
+      : { connectionId: ctx.connectionId }),
+    ...timeout,
+  };
+}
+
 function translateAction(
   action: RoutingAction,
-  clientState: string
+  clientState: string,
+  ctx: TranslateContext
 ): CommandPlan {
   switch (action.type) {
     case "say":
@@ -274,15 +353,7 @@ function translateAction(
         clientState,
       };
     case "forward":
-      return {
-        kind: "transfer",
-        to: action.to,
-        ...(action.callerId === undefined ? {} : { from: action.callerId }),
-        ...(action.timeoutSeconds === undefined
-          ? {}
-          : { timeoutSecs: action.timeoutSeconds }),
-        clientState,
-      };
+      return forwardPlan(action, clientState, ctx);
     default:
       // Only say/play/record/forward/hangup ever reach a sequence queue by
       // construction (routing's multi-action decision is voicemail = say +
@@ -364,6 +435,19 @@ export function planInitialCommand(
   };
 }
 
+/**
+ * Hangup causes on a `forward-leg` that must NOT hang up the parent call:
+ * either another leg won the simultaneous ring (Telnyx cancels the rest), a
+ * bridged conversation ended normally (Telnyx tears the peer down itself),
+ * or this leg declined while sibling legs may still be ringing.
+ */
+const FORWARD_LEG_KEEPALIVE_CAUSES = new Set([
+  "originator_cancel",
+  "normal_clearing",
+  "user_busy",
+  "call_rejected",
+]);
+
 /** Telnyx completion events that advance a sequence by one action. */
 const ADVANCING_EVENTS = new Set([
   "call.answered",
@@ -398,6 +482,10 @@ export function advanceSequence(
 ): TelnyxCommandStep {
   const ccid = event.payload.callControlId;
 
+  if (state.mode === "forward-leg") {
+    return advanceForwardLeg(event, state);
+  }
+
   if (state.mode === "stream" || !ADVANCING_EVENTS.has(event.eventType)) {
     return {
       plan: { kind: "noop" },
@@ -421,8 +509,43 @@ export function advanceSequence(
     q: rest,
     step: nextStep,
   });
+  const { connectionId, from } = event.payload;
   return {
-    plan: translateAction(head, clientState),
+    plan: translateAction(head, clientState, {
+      callControlId: ccid,
+      ...(connectionId === undefined ? {} : { connectionId }),
+      ...(from === undefined ? {} : { from }),
+    }),
     commandId: telnyxCommandId(ccid, nextStep),
+  };
+}
+
+/**
+ * Plans the next command for an outbound `forward-leg` (one destination of a
+ * simultaneous ring). The leg's answer needs no command — Telnyx bridges it
+ * to the parent itself (`bridge_on_answer`). Its hangup ends the parent
+ * unless the cause says another leg won or may still win (see
+ * {@link FORWARD_LEG_KEEPALIVE_CAUSES}) — that is what frees the caller from
+ * dead air when nobody picks up.
+ */
+function advanceForwardLeg(
+  event: TelnyxWebhookEvent,
+  state: TelnyxCallState
+): TelnyxCommandStep {
+  const ccid = event.payload.callControlId;
+  const cause = event.payload.hangupCause;
+  if (
+    event.eventType === "call.hangup" &&
+    state.parent !== undefined &&
+    (cause === undefined || !FORWARD_LEG_KEEPALIVE_CAUSES.has(cause))
+  ) {
+    return {
+      plan: { kind: "hangup", target: state.parent },
+      commandId: telnyxCommandId(ccid, state.step + 1),
+    };
+  }
+  return {
+    plan: { kind: "noop" },
+    commandId: telnyxCommandId(ccid, state.step),
   };
 }
