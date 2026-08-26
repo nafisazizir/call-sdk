@@ -37,9 +37,9 @@ Call SDK is not a voice-AI framework. It is the telephony layer such a framework
 - **Screening & blocking** — reject or divert calls from a blocklist.
 - **Voicemail** — play a prompt, record a message, hang up.
 - **Outbound calls** — `call.dial({ adapter: "twilio", to })` returns a live session.
-- **Real-time voice applications, including AI voice agents** — route a call to `stream()`, take over its raw normalized audio, and run your own STT → logic → TTS loop on top. ([`examples/twilio-on-ws`](examples/twilio-on-ws) is the flagship: a full phone agent on the AI SDK)
+- **Real-time voice applications, including AI voice agents** — route a call to `stream()`, take over its raw normalized audio, and run your own STT → logic → TTS loop on top.
 
-That last one is *one example consumer, not the SDK's purpose*. The core ships no STT, TTS, turn detection, or LLM coupling — those live in the flagship example ([`examples/twilio-on-ws`](examples/twilio-on-ws)), never in the core contract.
+That last one is *one example consumer, not the SDK's purpose*. The core ships no STT, TTS, turn detection, or LLM coupling — those are built by consumers on the `session.audio` and `session.bus` surface, never in the core contract.
 
 ## How it works
 
@@ -73,34 +73,9 @@ No handler registered → every call streams. A handler that throws or times out
 
 ### The media plane
 
-`stream()` gets you a `CallSession`: a typed event bus, raw canonical audio (`session.audio.frames()` in, `session.audio.write()` out), and the barge-in *mechanism* — `session.audio.clear()` flushes audio already queued on the provider, because stopping generation alone leaves buffered audio playing. When the caller is done speaking, when to interrupt — that's *policy*, and policy is yours (or the optional pipeline's).
+`stream()` gets you a `CallSession`: a typed event bus, raw canonical audio (`session.audio.frames()` in, `session.audio.write()` out), and the barge-in *mechanism* — `session.audio.clear()` flushes audio already queued on the provider, because stopping generation alone leaves buffered audio playing. When the caller is done speaking, when to interrupt — that's *policy*, and policy is yours.
 
 Every call ends with **exactly one terminal `call-ended` event**, on every path — hangup, dropped media socket, upstream failure, unhandled error. Consumer cleanup registered via `session.registerCleanup()` runs before it, in reverse registration order. Adapter operations after call end are logged no-ops, not throws.
-
-## The optional voice pipeline
-
-The reference semantic layer for voice applications — stages (VAD, turn detection, STT, TTS), `say()` with streaming text, transcript, conversation state, barge-in policy — is built entirely on the public core surface and attached per-call. It lives as plain source in the flagship example ([`examples/twilio-on-ws/src/pipeline`](examples/twilio-on-ws/src/pipeline)) **by design**: STT/TTS/VAD/turn code is a consumer's choice, not the SDK's, and it graduates to its own package (`@call-adapter/pipeline` + provider stages) only once the abstraction is proven across providers. A router or plain recorder never pulls it in.
-
-```ts
-import { attachVoice, createDeepgramStage, createElevenLabsStage } from "./pipeline";
-
-call.onIncomingCall((incoming) => incoming.stream());
-call.onCallStarted((session) => {
-  const voice = attachVoice(session, {
-    stages: [createDeepgramStage(), createElevenLabsStage()],
-    onEndOfTurn: async (turn, voice) => {
-      const { textStream } = streamText({
-        model: openai("gpt-5-nano"),
-        messages: toModelMessages(voice.transcript),
-      });
-      await voice.say(textStream);
-    },
-  });
-  void voice.say("Hi! How can I help you today?");
-});
-```
-
-VAD and turn detection are injected by default; **turn detection ≠ silence detection** — "the audio went quiet" is not "the caller is done speaking," and `end-of-turn` is a distinct, swappable stage. A caller speaking while the agent talks triggers barge-in: TTS is aborted and the provider queue flushed. None of this is in core — a router or plain recorder never pulls it in.
 
 ## Packages
 
@@ -110,9 +85,8 @@ VAD and turn detection are injected by default; **turn detection ≠ silence det
 | [`packages/adapter-twilio`](packages/adapter-twilio) | `@call-adapter/twilio` | Twilio adapter: TwiML verb translation + raw Media Streams. |
 | [`packages/tests`](packages/tests) | `@call-adapter/tests` | Conformance suites (adapter, routing), mocks, and a protocol-accurate fake Twilio client. Depends only on `call-sdk`. |
 | [`examples/call-router`](examples/call-router) | `example-call-router` | The headline use case: reject/forward/voicemail router, control plane only, no media. |
-| [`examples/twilio-on-ws`](examples/twilio-on-ws) | `example-twilio-on-ws` | The flagship voice app: Twilio + the AI SDK, and the reference voice pipeline (VAD/turn detection + Deepgram STT + ElevenLabs TTS) as example source in [`src/pipeline`](examples/twilio-on-ws/src/pipeline). |
 
-The published package surface is deliberately just those three (`call-sdk`, `@call-adapter/twilio`, `@call-adapter/tests`). The STT/TTS/VAD/turn-detection pipeline lives in the example until the multi-provider abstraction is proven, then graduates to packages.
+The published package surface is `call-sdk`, `@call-adapter/twilio`, and `@call-adapter/tests`. STT/TTS/VAD/turn-detection code is a consumer concern, not part of the SDK.
 
 ## Event taxonomy
 
@@ -128,7 +102,7 @@ Core (`CallEventMap` in `call-sdk`) is transport and lifecycle only:
 | `error` | A session-level error (`fatal` gates auto-teardown). |
 | `telemetry` | A latency instrumentation mark was recorded. |
 
-The pipeline merges its semantic events into the same map via TypeScript declaration merging when you import it: `speech-start`/`speech-end` (VAD), `transcript-interim`/`transcript-final`/`stt-endpoint` (STT), `end-of-turn` (turn detection), `agent-say` (the sole command event), `audio-out`, `agent-generation-end`, `agent-speech-start`/`agent-speech-end`, `interruption`.
+A consumer pipeline may widen the same map via TypeScript declaration merging (`declare module "call-sdk"`) for events like `speech-start`/`speech-end` (VAD), `transcript-interim`/`transcript-final` (STT), `end-of-turn` (turn detection), `agent-say`, `audio-out`, `agent-speech-start`/`agent-speech-end`, and `interruption`. The core stays transport-only.
 
 ## Canonical audio
 
@@ -136,7 +110,7 @@ Every adapter normalizes to PCM16 mono @ 16 kHz, 20 ms frames on the way in and 
 
 ## Telemetry
 
-The core instruments the media boundary from the first frame (`session.telemetry.marks`, `telemetry: { sink }` on `Call` to forward marks anywhere). The pipeline layers per-turn summaries on top: `voice.turns` derives `responseLatencyMs` (end-of-turn → first agent audio) and `voiceToVoiceMs` (caller speech-end → first agent audio) per turn.
+The core instruments the media boundary from the first frame (`session.telemetry.marks`, `telemetry: { sink }` on `Call` to forward marks anywhere). Consumers layer their own per-turn summaries or other telemetry on top of these raw marks.
 
 ## Transport & runtime
 
@@ -153,7 +127,6 @@ The SDK dictates no host. But the media plane's requirement is physics: serverle
 git clone <this-repo>
 pnpm install
 pnpm --filter example-call-router dev   # the router
-pnpm --filter example-twilio-on-ws dev  # the voice agent
 ```
 
 ## Development

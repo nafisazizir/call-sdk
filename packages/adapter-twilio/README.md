@@ -42,7 +42,7 @@ import { WebSocketServer } from "ws";
 const server = createServer((req, res) => {
   if (req.method === "POST" && req.url === "/twilio/voice") {
     // adapt `req` to a WHATWG Request, call call.webhooks.twilio(request),
-    // write the Response back — see examples/twilio-on-ws/src/app.ts
+    // write the Response back
   }
 });
 
@@ -53,8 +53,6 @@ server.on("upgrade", (req, socket, head) => {
   }
 });
 ```
-
-See [`examples/twilio-on-ws`](../../examples/twilio-on-ws) for the complete, runnable wiring (including the `node:http` ↔ WHATWG `Request`/`Response` adapter glue), and [`examples/call-router`](../../examples/call-router) for a control-plane-only router with no media at all.
 
 ## Config (`TwilioAdapterConfig`)
 

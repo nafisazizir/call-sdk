@@ -8,7 +8,6 @@ export default defineConfig({
       "packages/adapter-telnyx",
       "packages/tests",
       "examples/call-router",
-      "examples/twilio-on-ws",
     ],
   },
 });

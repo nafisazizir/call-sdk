@@ -9,8 +9,8 @@
  * duties over the real wire, not any semantic layer above it: inbound mu-law
  * normalizes to canonical frames, outbound canonical frames de-normalize back
  * onto the wire, `clear()` flushes the provider queue for barge-in, and every
- * call ends with exactly one `call-ended`. (The semantic pipeline is
- * exercised in `examples/twilio-on-ws`, which owns it.)
+ * call ends with exactly one `call-ended`. (The semantic pipeline is a
+ * consumer-layer concern and is intentionally not tested here.)
  *
  * This is also where `call.media.twilio(ws)` proves the structural-typing
  * claim in call-sdk's `MediaSocket` doc comment: a raw `ws` `WebSocket`

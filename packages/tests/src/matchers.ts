@@ -22,7 +22,7 @@ export interface RecordedEvents {
  * every published payload, so tests can assert on what was emitted. Defaults
  * to the core transport/lifecycle taxonomy ({@link CORE_CALL_EVENT_TYPES});
  * callers that need semantic events (e.g. the voice pipeline) pass an extended
- * list — see the example's `pipeline/testing/matchers.ts`.
+ * list of event types.
  */
 export function recordEvents(
   bus: EventBus<CallEventMap>,
