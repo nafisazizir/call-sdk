@@ -93,7 +93,7 @@ describe("routingDecisionTwiml", () => {
 
   it("translates forward with the number as text content, no optional attrs when unset", () => {
     const xml = routingDecisionTwiml(
-      decisionOf({ type: "forward", to: "+15551234567" }),
+      decisionOf({ type: "forward", to: ["+15551234567"] }),
       NOOP_CTX
     );
     expect(xml).toBe(
@@ -101,11 +101,24 @@ describe("routingDecisionTwiml", () => {
     );
   });
 
+  it("translates a multi-number forward as one Dial with a Number per destination (simultaneous ring)", () => {
+    const xml = routingDecisionTwiml(
+      decisionOf({
+        type: "forward",
+        to: ["+15551234567", "+15557654321", "+1 & <555>"],
+      }),
+      NOOP_CTX
+    );
+    expect(xml).toBe(
+      '<?xml version="1.0" encoding="UTF-8"?><Response><Dial><Number>+15551234567</Number><Number>+15557654321</Number><Number>+1 &amp; &lt;555&gt;</Number></Dial></Response>'
+    );
+  });
+
   it("translates forward with callerId and timeoutSeconds attributes", () => {
     const xml = routingDecisionTwiml(
       decisionOf({
         type: "forward",
-        to: "+15551234567",
+        to: ["+15551234567"],
         callerId: `+1 "caller" & <co>`,
         timeoutSeconds: 20,
       }),
@@ -119,7 +132,7 @@ describe("routingDecisionTwiml", () => {
 
   it("escapes the forward number as text content", () => {
     const xml = routingDecisionTwiml(
-      decisionOf({ type: "forward", to: "+1 & <555>" }),
+      decisionOf({ type: "forward", to: ["+1 & <555>"] }),
       NOOP_CTX
     );
     expect(xml).toContain("<Number>+1 &amp; &lt;555&gt;</Number>");

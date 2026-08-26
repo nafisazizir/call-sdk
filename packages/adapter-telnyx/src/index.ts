@@ -454,7 +454,7 @@ export class TelnyxAdapter implements Adapter {
           command_id: commandId,
         });
       case "hangup":
-        return client.hangup(ccid, {
+        return client.hangup(plan.target ?? ccid, {
           command_id: commandId,
           ...(plan.clientState === undefined
             ? {}
@@ -468,6 +468,8 @@ export class TelnyxAdapter implements Adapter {
             ? {}
             : { stream_url: plan.stream.streamUrl, ...STREAM_PARAMS }),
         });
+      case "dial":
+        return this.#dialForwardLegs(client, plan, commandId);
       case "transfer":
         return client.transfer(ccid, {
           to: plan.to,
@@ -504,6 +506,50 @@ export class TelnyxAdapter implements Adapter {
       default:
         return Promise.resolve();
     }
+  }
+
+  /**
+   * Executes a `dial` plan: one `POST /v2/calls` ringing every destination
+   * of a multi-number forward simultaneously. `link_to` + bridge-on-answer
+   * make Telnyx bridge the first leg to answer to the inbound call and
+   * cancel the rest — first answer wins, natively.
+   */
+  async #dialForwardLegs(
+    client: TelnyxCommandClient,
+    plan: Extract<CommandPlan, { kind: "dial" }>,
+    commandId: string
+  ): Promise<void> {
+    const from =
+      plan.from ?? this.#config.phoneNumber ?? process.env.TELNYX_PHONE_NUMBER;
+    if (!from) {
+      throw new AdapterError(
+        "forwarding to multiple numbers requires a 'from' number: the webhook carried none — set config.phoneNumber or TELNYX_PHONE_NUMBER",
+        { adapterName: "telnyx" }
+      );
+    }
+    const connectionId =
+      plan.connectionId ??
+      this.#config.connectionId ??
+      process.env.TELNYX_CONNECTION_ID;
+    if (!connectionId) {
+      throw new AdapterError(
+        "forwarding to multiple numbers requires a connection id: the webhook carried none — set config.connectionId or TELNYX_CONNECTION_ID",
+        { adapterName: "telnyx" }
+      );
+    }
+    await client.createCall({
+      to: [...plan.targets],
+      from,
+      connection_id: connectionId,
+      link_to: plan.linkTo,
+      bridge_intent: true,
+      bridge_on_answer: true,
+      client_state: plan.clientState,
+      command_id: commandId,
+      ...(plan.timeoutSecs === undefined
+        ? {}
+        : { timeout_secs: plan.timeoutSecs }),
+    });
   }
 
   // ---------------------------------------------------------------------

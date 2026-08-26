@@ -87,7 +87,7 @@ No VAD, transcription, or turn detection lives here — those are pipeline stage
 | Verb | TwiML |
 | --- | --- |
 | `reject(opts?)` | `<Reject reason="rejected\|busy"/>` |
-| `forwardTo(number, opts?)` | `<Dial><Number>...</Number></Dial>` |
+| `forwardTo(number \| number[], opts?)` | `<Dial>` with one `<Number>` per destination — multiple numbers ring simultaneously; Twilio connects the first to answer and stops the rest |
 | `say(text, opts?)` | `<Say voice="..." language="...">text</Say>` |
 | `play(url)` | `<Play>url</Play>` |
 | `voicemail(opts?)` | `<Say>prompt</Say>` (if a prompt was given), then `<Record action="...">` |

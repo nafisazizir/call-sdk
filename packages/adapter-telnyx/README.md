@@ -85,6 +85,10 @@ No VAD, transcription, or turn detection lives here — those are pipeline stage
 
 Telnyx's Call Control is fundamentally asynchronous: instead of returning a markup document synchronously from the webhook (as Twilio's TwiML does), the webhook handler acknowledges the triggering event and then issues one or more REST commands against `/v2/calls/{call_control_id}/actions/{command}`; Telnyx reports each command's outcome via a follow-up webhook event. `src/commands.ts`'s `TelnyxCommandClient` is the REST layer this async command flow is built on.
 
+## Forwarding (single- and multi-number)
+
+`forwardTo("+1...")` translates to a single `transfer` command. `forwardTo(["+1...", "+1..."])` becomes simultaneous ring: after answering the caller, the adapter issues one `POST /v2/calls` dialing every destination in the array, linked to the inbound call (`link_to`) with `bridge_on_answer` — Telnyx rings all destinations at once, bridges the caller to the first that answers, and cancels the rest. Multi-number forwarding needs a `from` number and a Call Control Application id for the outbound legs: the caller ID (or the inbound call's `from`) covers the former, and the webhook's `connection_id` (falling back to `config.connectionId`) the latter. If a leg's terminal `call.hangup` arrives without any answer (timeout, rejection), the adapter hangs the inbound caller up rather than leaving dead air.
+
 ## Webhook signature verification
 
 Telnyx signs webhooks with Ed25519, not HMAC: the `telnyx-signature-ed25519` header (base64) signs `${timestamp}|${rawBody}`, where `timestamp` is the `telnyx-timestamp` header (unix seconds) and `rawBody` is the exact request body bytes. `src/signature.ts`'s `verifyTelnyxSignature` wraps the base64-distributed raw 32-byte public key in a minimal SPKI DER envelope (`telnyxPublicKeyObject`) and verifies with `node:crypto` only — no external dependency. It never throws: a malformed key/signature, or a stale timestamp outside the tolerance window, simply verifies as `false`.

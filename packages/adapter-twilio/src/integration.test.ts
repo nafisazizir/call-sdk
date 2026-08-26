@@ -463,6 +463,17 @@ describe("Twilio routing contract", () => {
             },
           ]);
         },
+        forwardMultiple: ({ body }) => {
+          expect(verbs(body)).toMatchObject([
+            {
+              tag: "Dial",
+              children: [
+                { tag: "Number", text: "+15550001111" },
+                { tag: "Number", text: "+15550003333" },
+              ],
+            },
+          ]);
+        },
         say: ({ body }) => {
           expect(verbs(body)).toMatchObject([{ tag: "Say", text: "hello" }]);
         },

@@ -11,9 +11,17 @@
  * can be added later without changing the adapter contract.
  */
 
+import { CallConfigError } from "./errors";
+
 export type RoutingAction =
   | { type: "reject"; reason: "rejected" | "busy" }
-  | { type: "forward"; to: string; callerId?: string; timeoutSeconds?: number }
+  | {
+      type: "forward";
+      /** Destination numbers; more than one means simultaneous ring, first answer wins. */
+      to: readonly string[];
+      callerId?: string;
+      timeoutSeconds?: number;
+    }
   | { type: "say"; text: string; voice?: string; language?: string }
   | { type: "play"; url: string }
   | { type: "record"; maxLengthSeconds: number; playBeep: boolean }
@@ -50,9 +58,13 @@ export interface IncomingCall {
   /** Provider-native call id (e.g. a Twilio CallSid). */
   readonly callId: string;
 
-  /** Answer and connect the caller to another number (forwarding / transfer at pickup). */
+  /**
+   * Answer and connect the caller to another number (forwarding / transfer
+   * at pickup). An array of numbers rings them all simultaneously; the first
+   * to answer takes the call and the rest stop ringing.
+   */
   forwardTo(
-    number: string,
+    number: string | readonly string[],
     opts?: { callerId?: string; timeoutSeconds?: number }
   ): RoutingDecision;
   readonly from?: string;
@@ -111,7 +123,7 @@ export function createIncomingCall(
     forwardTo: (number, opts) =>
       decision({
         type: "forward",
-        to: number,
+        to: normalizeForwardTargets(number),
         ...(opts?.callerId === undefined ? {} : { callerId: opts.callerId }),
         ...(opts?.timeoutSeconds === undefined
           ? {}
@@ -143,6 +155,19 @@ export function createIncomingCall(
       return decision(...actions);
     },
   };
+}
+
+/** Validates and normalizes `forwardTo`'s destination(s) to a non-empty list. */
+function normalizeForwardTargets(
+  number: string | readonly string[]
+): readonly string[] {
+  const targets = typeof number === "string" ? [number] : [...number];
+  if (targets.length === 0 || targets.some((target) => target === "")) {
+    throw new CallConfigError(
+      "forwardTo requires at least one non-empty destination number"
+    );
+  }
+  return targets;
 }
 
 /** The decision core falls back to when no `onIncomingCall` handler is registered. */
