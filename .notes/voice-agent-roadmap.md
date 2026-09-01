@@ -11,21 +11,35 @@ This document records the current product direction and an evidence-driven roadm
 - **Develop Call and Voice in parallel.** Call SDK enters stabilization mode while Voice enters discovery mode. Voice is the consumer that will reveal whether Call SDK's transport boundary is sufficient.
 - **Keep strict dependency direction.** Voice semantics never move down into Call SDK. A bridge package may depend on both.
 - **Start as an SDK, not a framework.** Deployment conventions, workers, persistence, dashboards, and project structure should only become a framework after several real applications repeatedly need the same assembly.
-- **Compete on focus, not feature count.** The target is a small TypeScript- and AI SDK-native path from a reusable agent to a real phone call, without requiring a hosted voice-agent service or RTC platform.
+- **Bet on AI SDK without depending on an existing agent.** AI SDK is the preferred model and tool ecosystem, not a prerequisite user artifact and not the owner of Voice's real-time semantics.
+- **Compete on focus, not feature count.** The target is a small TypeScript- and AI SDK-native path to building a real-time telephone agent, without requiring a hosted voice-agent service or RTC platform.
 
 ## Product thesis
 
-> Connect an AI SDK agent to any real-time audio transport, including direct telephone calls, without adopting a hosted voice-agent platform or RTC infrastructure.
+> Provide the cleanest TypeScript path to building a real-time voice agent for telephone calls, with AI SDK-native models and tools, direct telephony-provider portability, and no required hosted voice-agent or RTC platform.
 
-The portable unit is the agent's intelligence:
+The target user is a TypeScript developer building a code-first voice application. They may already use AI SDK, but they do not need to arrive with a reusable agent. The portable unit is the application's intelligence:
 
 - instructions and behavior
-- model or AI SDK agent
+- AI SDK model or agent configuration
 - tools and authorization
 - business logic
 - conversation-state policy
 
-Delivery runtimes remain responsible for modality-specific behavior. Voice requires turn-taking, interruption, playback accounting, and latency policy; chat requires threads, messages, cards, and reactions. The goal is **one agent brain across multiple delivery runtimes**, not identical presentation on every channel.
+Delivery runtimes remain responsible for modality-specific behavior. Voice requires turn-taking, interruption, playback accounting, and latency policy; chat requires threads, messages, cards, and reactions. A long-term design constraint is **one application brain across multiple delivery runtimes**, not identical presentation on every channel. This roadmap only commits to proving the voice runtime.
+
+## AI SDK strategy
+
+Voice is **AI SDK-first, not AI SDK-only**:
+
+- AI SDK is the default integration for model generation, tools, and compatible message state.
+- AI SDK speech, transcription, and realtime implementations are preferred when they pass Voice's capability and conformance requirements.
+- Voice retains its own contracts for streaming, endpointing, interruption, cancellation, speech scheduling, playout accounting, teardown, and observability.
+- Experimental or incomplete AI SDK APIs remain behind adapters rather than defining permanent Voice public types.
+- Direct provider integrations fill capability gaps and remain advanced escape hatches for behavior or metadata AI SDK cannot represent.
+- When an AI SDK path reaches behavioral parity, it becomes the preferred default without removing equivalent capability or control.
+
+AI SDK preference must never weaken the real-time contract. The durable product is conversation orchestration and direct telephony portability; improvements in AI SDK's audio support should strengthen this SDK rather than obsolete it.
 
 ## Market and OSS landscape
 
@@ -180,7 +194,7 @@ Names are placeholders. The dependency direction is the decision:
 
 ```text
 voice-agent                 -> must not require call-sdk
-@voice-transport/call       -> voice-agent + call-sdk
+@voice-transport/call       -> may depend on voice-agent + call-sdk
 call-sdk                    -> must not know voice-agent exists
 ```
 
@@ -238,7 +252,8 @@ If not, it belongs above Call SDK.
 3. **Do not add speculative transport features.** Require a working consumer, a non-AI use case, support from multiple adapters, or an explicit capability model.
 4. **Every transport change must preserve both reference adapters.** Run shared contracts and provider integration tests for Twilio and Telnyx.
 5. **Keep provider-specific behavior at the edge.** Do not weaken the common contract merely to expose one provider's managed semantics.
-6. **Keep Voice experimental until two-dimensional portability is proven.** One transport and one STT/TTS combination proves a demo, not an abstraction.
+6. **Adopt AI SDK by capability, not loyalty.** Prefer its implementations when they pass the same conformance requirements as direct providers; do not weaken streaming, interruption, cancellation, or playback semantics to fit an upstream API.
+7. **Keep Voice experimental until two-dimensional portability is proven.** One transport and one STT/TTS combination proves a demo, not an abstraction.
 
 ## Roadmap
 
@@ -248,7 +263,8 @@ The stages below are evidence gates, not dates.
 
 Deliverables:
 
-- product thesis and explicit non-goals
+- product thesis, target user, and explicit non-goals
+- AI SDK-first integration and escape-hatch strategy
 - competitor capability matrix
 - one north-star application
 - initial package and dependency diagram
@@ -256,7 +272,7 @@ Deliverables:
 
 Exit criterion:
 
-- The project can explain why its target user would choose it over LiveKit: they already have a TypeScript application and AI SDK agent and want direct, provider-portable telephony without a hosted agent or RTC platform.
+- The project can explain why its target user would choose it over LiveKit: they want to build a code-first TypeScript voice agent with AI SDK-native models and tools, direct provider-portable telephony, and no required hosted agent or RTC platform. An existing AI SDK agent is not a prerequisite.
 
 ### Stage 1A: stabilize Call SDK transport
 
@@ -294,8 +310,10 @@ Initial capabilities:
 - a `VoiceSession` orchestrator
 - a small voice transport contract
 - streaming transcriber contract
-- AI SDK agent runner integration
+- AI SDK model and agent runner integration
 - streaming synthesizer contract
+- AI SDK adapters where upstream capabilities satisfy the transcriber and synthesizer contracts
+- direct provider adapters as capability-gap and advanced escape hatches
 - turn-detector contract
 - explicit session, user, and agent states
 - an interruptible speech handle
@@ -335,11 +353,11 @@ Use one stack only:
 ```text
 Transport: Twilio through Call SDK
 STT:       one genuinely streaming provider with endpointing
-Agent:     Vercel AI SDK with one tool
+Agent:     Vercel AI SDK model or agent with one tool
 TTS:       one genuinely streaming provider
 ```
 
-Prefer provider endpointing or a simple speech-start detector before building semantic turn detection.
+Use AI SDK for STT or TTS when its implementation satisfies the streaming, cancellation, format, and event requirements; otherwise use a direct provider adapter behind the same Voice contract. Prefer provider endpointing or a simple speech-start detector before building semantic turn detection.
 
 Instrument from the beginning:
 
@@ -450,7 +468,7 @@ Only after transport and speech-provider portability have validated the contract
 
 - review and reduce every public type and configuration field
 - write one excellent quickstart
-- document lifecycle, interruption, and provider-extension semantics
+- document lifecycle, interruption, AI SDK integration, and direct-provider escape-hatch semantics
 - publish conformance guidance
 - provide real inbound and outbound examples
 - test downstream package installation and built artifacts
@@ -477,9 +495,9 @@ Until then, keep the system a host-agnostic SDK.
 1. Freeze speculative Call SDK scope expansion; stabilize Twilio, Telnyx, media contracts, examples, and real-call validation.
 2. Maintain a competitor capability matrix with columns for user problem, observed behavior, our decision, roadmap phase, and proving test.
 3. Write acceptance scenarios for the order-status north-star agent.
-4. Sketch the smallest desirable public usage API before finalizing internal interfaces.
+4. Sketch the smallest desirable AI SDK-native public usage API before finalizing internal interfaces.
 5. Start an unpublished experimental Voice package and example.
-6. Implement the Voice kernel with deterministic fakes first.
+6. Implement the Voice kernel with deterministic fakes first, using AI SDK for models and tools while keeping speech behind capability-oriented contracts.
 7. Connect it to real Twilio through Call SDK and let the consumer reveal missing transport facts.
 8. Connect the unchanged application to Telnyx.
 9. Add a second STT and TTS provider to validate model portability.
@@ -503,14 +521,14 @@ Until then, keep the system a host-agnostic SDK.
 The first meaningful product proof is not a large provider list. It is one application demonstrating both dimensions of portability:
 
 ```text
-one AI SDK agent
+one application using AI SDK models and tools
   x two telephony transports
   x two streaming STT providers
   x two streaming TTS providers
 ```
 
-The business logic, tools, and conversation orchestration remain unchanged across those combinations. Interruption is prompt, teardown is deterministic, and each turn is observable and testable.
+The instructions, business logic, tools, and conversation orchestration remain unchanged across those combinations. Interruption is prompt, teardown is deterministic, and each turn is observable and testable. AI SDK implementations are preferred where they satisfy the runtime contract, with direct integrations preserving capabilities they cannot yet express.
 
 The focused product promise is:
 
-> The cleanest TypeScript path from an AI SDK agent to a real phone call, with direct provider portability and no required hosted voice or RTC platform.
+> The cleanest TypeScript path to a real-time telephone agent, with AI SDK-native models and tools, direct telephony-provider portability, and no required hosted voice or RTC platform.
